@@ -1,0 +1,60 @@
+# Dry run of the M5 study on the dev dataset with tiny budgets (CPU, ~1 hour).
+# Checks that every part of the pipeline works before the GPU spends a night on it.
+# The numbers it produces are NOT results.
+#
+#   python -m nfds.study.run configs/study/m5_dev.yaml
+#   python -m nfds.study.aggregate configs/study/m5_dev.yaml
+
+name: m5_dev
+data: data/forced_dev
+runs_dir: runs/m5_dev
+results_dir: results/m5_dev
+
+models:
+  cnn: configs/train/cnn_dev.yaml
+  unet: configs/train/unet_dev.yaml
+  fno: configs/train/fno_dev.yaml
+
+overrides: ["optim.epochs=2", "max_batches_per_epoch=25", "val.horizon=8"]
+model_overrides:
+  cnn: ["model.width=16", "model.depth=3"]
+  unet: ["model.widths=[16, 32, 64]", "model.emb_dim=32"]
+  fno: ["model.width=16", "model.modes=8"]
+
+experiments:
+  regimes:
+    models: [cnn, unet, fno]
+    regimes:
+      onestep: {type: onestep}
+      noise: {type: noise, noise_std: 0.05}
+      unroll4: {type: unroll, unroll: 4}
+      pushforward4: {type: pushforward, unroll: 4}
+    seeds: [0, 1]
+  scaling:
+    models: [unet, fno]
+    regimes: {onestep: {type: onestep}}
+    train_trajectories: [8, 16, 32, 64]
+    seeds: [0]
+    evaluate: [test_id]
+  fewshot:
+    from: {experiment: regimes, regime: pushforward4, seed: 0}
+    models: [unet, fno]
+    split: test_re_low
+    split_trajectories: 16
+    shots: [2, 4]
+    val_trajectories: 4
+    overrides: ["optim.epochs=2", "optim.lr=1.0e-4", "optim.batch_size=16"]
+
+evaluation:
+  horizon: 40
+  splits: [test_id, test_interp, test_re_low, test_ic]
+  resolution_transfer: {split: test_id, resolutions: [128]}
+  long: {split: test_long, horizon: 236}
+  baselines: [persistence, coarse_solver]
+
+speed:
+  split: test_id
+  runs: "regimes-*-onestep-*-s0"
+  solver_resolutions: [32, 48, 64, 96, 128]
+  horizon: 10
+  batch: 16

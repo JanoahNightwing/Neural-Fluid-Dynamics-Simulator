@@ -62,6 +62,13 @@ class TrainConfig:
     out_dir: str = "runs"
     train_split: str = "train"
     val_split: str = "val"
+    # (start, stop) ranges of trajectories: data-scaling subsets and few-shot fine-tuning
+    train_trajectories: list[int] | None = None
+    val_trajectories: list[int] | None = None
+    # Start from a trained checkpoint (fine-tuning). Model architecture, input window and
+    # normalisation are taken from the checkpoint; ``model`` and ``n_in`` are ignored.
+    init_checkpoint: str | None = None
+    max_batches_per_epoch: int | None = None  # cap for quick/dry runs
 
     def validate(self) -> None:
         r = self.regime
@@ -75,6 +82,9 @@ class TrainConfig:
             raise ValueError("regime 'noise' needs noise_std > 0")
         if "name" not in self.model:
             raise ValueError("model config needs a 'name'")
+        for rng in (self.train_trajectories, self.val_trajectories):
+            if rng is not None and (len(rng) != 2 or not 0 <= rng[0] < rng[1]):
+                raise ValueError(f"trajectory ranges must be [start, stop], got {rng}")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

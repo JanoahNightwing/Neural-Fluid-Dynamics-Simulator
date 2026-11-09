@@ -1,0 +1,88 @@
+{
+ "split": "test_id",
+ "horizon": 10,
+ "horizon_time": 2.5,
+ "batch": 16,
+ "device": "cpu",
+ "n_trajectories": 16,
+ "train_resolution": 64,
+ "compile": false,
+ "bf16": false,
+ "points": [
+  {
+   "name": "solver 32\u00b2",
+   "kind": "solver",
+   "resolution": 32,
+   "ms_per_step": 1.0033991499994954,
+   "ms_per_time_unit": 4.013596599997982,
+   "rel_l2_at_horizon": 0.5358716623263432,
+   "rel_l2_mean": 0.3909904330714241
+  },
+  {
+   "name": "solver 48\u00b2",
+   "kind": "solver",
+   "resolution": 48,
+   "ms_per_step": 2.6281447875021513,
+   "ms_per_time_unit": 10.512579150008605,
+   "rel_l2_at_horizon": 0.26630270074867746,
+   "rel_l2_mean": 0.21146957287489815
+  },
+  {
+   "name": "solver 64\u00b2",
+   "kind": "solver",
+   "resolution": 64,
+   "ms_per_step": 3.820402999997441,
+   "ms_per_time_unit": 15.281611999989764,
+   "rel_l2_at_horizon": 0.12593588158083918,
+   "rel_l2_mean": 0.10637774992148086
+  },
+  {
+   "name": "solver 96\u00b2",
+   "kind": "solver",
+   "resolution": 96,
+   "ms_per_step": 11.103572999996913,
+   "ms_per_time_unit": 44.414291999987654,
+   "rel_l2_at_horizon": 0.031203555144750147,
+   "rel_l2_mean": 0.029079617945970172
+  },
+  {
+   "name": "solver 128\u00b2",
+   "kind": "solver",
+   "resolution": 128,
+   "ms_per_step": 25.60187180000071,
+   "ms_per_time_unit": 102.40748720000283,
+   "rel_l2_at_horizon": 6.940552456567404e-05,
+   "rel_l2_mean": 3.0477915974057795e-05
+  },
+  {
+   "name": "regimes-cnn-onestep-nall-s0",
+   "kind": "model",
+   "checkpoint": "runs/m5_dev/regimes-cnn-onestep-nall-s0/best.pt",
+   "resolution": 64,
+   "ms_per_step": 1.3235627500023384,
+   "ms_per_time_unit": 5.2942510000093534,
+   "rel_l2_at_horizon": 1.0459881860609932,
+   "rel_l2_mean": 0.9034223542157589
+  },
+  {
+   "name": "regimes-unet-onestep-nall-s0",
+   "kind": "model",
+   "checkpoint": "runs/m5_dev/regimes-unet-onestep-nall-s0/best.pt",
+   "resolution": 64,
+   "ms_per_step": 5.418792199998279,
+   "ms_per_time_unit": 21.675168799993116,
+   "rel_l2_at_horizon": 1.1779369947775797,
+   "rel_l2_mean": 0.8233749491504992
+  },
+  {
+   "name": "regimes-fno-onestep-nall-s0",
+   "kind": "model",
+   "checkpoint": "runs/m5_dev/regimes-fno-onestep-nall-s0/best.pt",
+   "resolution": 64,
+   "ms_per_step": 2.162026487502544,
+   "ms_per_time_unit": 8.648105950010176,
+   "rel_l2_at_horizon": 0.9830859867005969,
+   "rel_l2_mean": 0.8782896980496371
+  }
+ ]
+}

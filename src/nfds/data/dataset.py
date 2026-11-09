@@ -40,8 +40,14 @@ def load_stats(root: str | Path) -> dict:
 
 
 def load_split(root: str | Path, split: str, resolution: int | None = None,
-               accepted_only: bool = True) -> dict[str, np.ndarray]:
-    """Load a whole split into memory: vorticity (N, T, n, n) plus per-trajectory metadata."""
+               accepted_only: bool = True,
+               trajectories: tuple[int, int] | list[int] | None = None) -> dict[str, np.ndarray]:
+    """Load a split into memory: vorticity (N, T, n, n) plus per-trajectory metadata.
+
+    ``trajectories = (start, stop)`` selects a contiguous range of the (accepted)
+    trajectories, e.g. (0, 100) for a data-scaling subset, or disjoint ranges of
+    one split for few-shot fine-tuning and evaluation.
+    """
     path = Path(root) / f"{split}.h5"
     with h5py.File(path, "r") as f:
         if resolution is None:
@@ -52,6 +58,14 @@ def load_split(root: str | Path, split: str, resolution: int | None = None,
             raise KeyError(f"{split}.h5 has no {key}; available: {avail}")
         keep = f["accepted"][:] if accepted_only else np.ones(len(f["nu"]), dtype=bool)
         idx = np.flatnonzero(keep)
+        if trajectories is not None:
+            start, stop = trajectories
+            if not 0 <= start < stop:
+                raise ValueError(f"invalid trajectory range {trajectories}")
+            if stop > len(idx):
+                raise ValueError(f"{split} has {len(idx)} trajectories, range {trajectories} "
+                                 "is out of bounds")
+            idx = idx[start:stop]
         out = {"vorticity": f[key][idx] if len(idx) else np.empty((0,) + f[key].shape[1:],
                                                                    np.float32)}
         for name in ("nu", "k_peak", "resolution_ratio", "energy_mean", "traj_index"):
@@ -73,16 +87,18 @@ class TrajectoryWindowDataset(Dataset):
     stride : spacing between window start times
     resolution : stored grid to use (default: the training resolution)
     normalize : apply the train-split normalisation to input and target
+    trajectories : optional (start, stop) range of trajectories to use
     """
 
     def __init__(self, root: str | Path, split: str, n_in: int = 1, n_out: int = 1,
                  stride: int = 1, resolution: int | None = None, normalize: bool = True,
-                 accepted_only: bool = True) -> None:
+                 accepted_only: bool = True,
+                 trajectories: tuple[int, int] | list[int] | None = None) -> None:
         if n_in < 1 or n_out < 1 or stride < 1:
             raise ValueError("n_in, n_out and stride must be >= 1")
         self.root, self.split = Path(root), split
         self.n_in, self.n_out = n_in, n_out
-        data = load_split(root, split, resolution, accepted_only)
+        data = load_split(root, split, resolution, accepted_only, trajectories)
         self.normalizer = Normalizer.from_stats(load_stats(root)) if normalize else None
         w = data["vorticity"]
         if self.normalizer is not None:

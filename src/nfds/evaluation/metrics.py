@@ -97,3 +97,54 @@ def summarise_curve(x: torch.Tensor) -> dict[str, list[float]]:
 
 def finite_or_none(v: float) -> float | None:
     return v if math.isfinite(v) else None
+
+
+def wasserstein_1d(a: torch.Tensor, b: torch.Tensor, n_quantiles: int = 512) -> float:
+    """1-Wasserstein distance between the value distributions of two samples (any shape),
+    via matched quantiles. Non-finite values are dropped; returns NaN if either is empty."""
+    a, b = a.flatten().double(), b.flatten().double()
+    a, b = a[torch.isfinite(a)], b[torch.isfinite(b)]
+    if a.numel() == 0 or b.numel() == 0:
+        return float("nan")
+    q = (torch.arange(n_quantiles, dtype=torch.float64) + 0.5) / n_quantiles
+    # torch.quantile has an input-size limit; subsample very large inputs deterministically
+    a = a[:: max(1, a.numel() // 2_000_000)]
+    b = b[:: max(1, b.numel() // 2_000_000)]
+    return float((torch.quantile(a, q) - torch.quantile(b, q)).abs().mean())
+
+
+def pde_residual(frames: torch.Tensor, nu: torch.Tensor, dt: float, grid: TorchSpectralGrid,
+                 drag: float, forcing_vorticity: torch.Tensor | None) -> torch.Tensor:
+    """RMS residual of the vorticity equation between consecutive frames, shape (N, T - 1).
+
+    Uses the trapezoidal rule, R = (w1 - w0)/dt - (F(w0) + F(w1))/2 with
+    F(w) = -u.grad(w) + nu lap(w) - alpha w + curl f. Even the true trajectory has a non-zero
+    residual (the frames are dt apart), so compare predictions against the truth's residual
+    rather than against zero.
+    """
+    from nfds.solver.spectral_torch import TorchVorticitySolver
+
+    out = []
+    for i in range(frames.shape[0]):
+        solver = TorchVorticitySolver(grid, float(nu[i]), drag=drag,
+                                      forcing_vorticity=forcing_vorticity)
+        w_hat = grid.fft(frames[i].to(grid.dtype))
+        if not torch.isfinite(torch.view_as_real(w_hat)).all():
+            out.append(torch.full((frames.shape[1] - 1,), float("nan"), dtype=torch.float64))
+            continue
+        f = solver.nonlinear(w_hat) + solver.linear * w_hat
+        r_hat = (w_hat[1:] - w_hat[:-1]) / dt - 0.5 * (f[1:] + f[:-1])
+        r = grid.ifft(r_hat)
+        out.append(r.pow(2).mean(dim=(-2, -1)).sqrt().double().cpu())
+    return torch.stack(out)
+
+
+def jsonable(obj):
+    """Recursively replace NaN/inf with None so results are strict JSON."""
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [jsonable(v) for v in obj]
+    return obj

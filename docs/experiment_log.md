@@ -216,3 +216,32 @@ idle machine. In future, benchmark with nothing else running.
 
 **Next.** Full-size models on `forced_v1` on the GPU (`configs/train/{cnn,unet,fno}_v1.yaml`), then
 the M5 study with multiple seeds.
+
+---
+
+## 2026-11-09 · E007 · Dry run of the M5 study pipeline (dev data, tiny budgets)
+
+**Purpose.** Prove the study tooling end to end before using GPU time. This is a pipeline
+check, not a result. Models trained for 2 epochs of 25 batches and are barely better than
+persistence.
+
+**Run.** `configs/study/m5_dev.yaml` on the regenerated `forced_dev` (which now includes a
+240-frame `test_long` split): 36 training runs (3 models × 4 regimes × 2 seeds, a 4-point
+data-scaling sweep for two models, few-shot fine-tuning with 2 and 4 trajectories), 172
+evaluations, both baselines, and the Pareto benchmark. 32 minutes on the 2-core CPU,
+0 failures. A second invocation trained and evaluated nothing (resume works).
+`python -m nfds.study.aggregate` produced the report, main table, paired regime-effect table and
+all six figures (`results/m5_dev/summary/REPORT.md`).
+
+**Problems the dry run caught (fixed).**
+1. The long-run spectra included trajectories that had blown up, while the long-run energy ratio
+   excluded them, so the CNN's spectrum peaked at 1e8 next to a modest energy bar. All long-run
+   statistics are now computed over the same non-failed trajectories, and the figure labels each
+   model with its failure rate.
+2. The held-out viscosity band in the Reynolds plot was drawn in white, which looked like a gap
+   in the data and had an invisible legend entry. It is now hatched.
+
+**What the diagnostics already show (on undertrained models).** The long-run test separates
+failure modes clearly: the U-Net piles energy into the smallest scales and 44% of its 60-time-unit
+rollouts blow up, while the FNO and CNN decay towards a near-zero-energy state. The real study
+will measure how training regimes change this.

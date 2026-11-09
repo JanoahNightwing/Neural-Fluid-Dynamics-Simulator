@@ -67,6 +67,7 @@ class SplitConfig:
     dt: float | None = None
     spinup: float | None = None
     resolutions: list[int] | None = None
+    n_frames: int | None = None
 
 
 @dataclass
@@ -116,6 +117,7 @@ class DatasetConfig:
             "dt": split.dt or sim.dt,
             "spinup": sim.spinup if split.spinup is None else split.spinup,
             "resolutions": split.resolutions or [sim.train_n],
+            "n_frames": split.n_frames or sim.n_frames,
         }
 
     def validate(self) -> None:
@@ -147,6 +149,18 @@ class DatasetConfig:
 
     def fingerprint(self) -> str:
         return hashlib.sha256(self.to_json().encode()).hexdigest()[:16]
+
+    def split_fingerprint(self, name: str) -> str:
+        """Hash of everything that determines one split's data: the shared settings
+        (physics, simulation, quality, seed) plus that split's own config. Adding or
+        changing another split leaves it unchanged."""
+        d = self.to_dict()
+        d.pop("splits")
+        for key in ("name", "description", "version"):
+            d.pop(key, None)
+        split = next(asdict(s) for s in self.splits if s.name == name)
+        blob = json.dumps({"shared": d, "split": split}, sort_keys=True)
+        return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
     def with_limit(self, limit: int | None) -> DatasetConfig:
         """Copy with every split capped at ``limit`` trajectories (for smoke tests)."""

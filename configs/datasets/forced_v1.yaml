@@ -68,3 +68,8 @@ splits:
     nu: {dist: loguniform, low: 1.0e-3, high: 5.0e-3}
     ic: {type: mixed, kinds: [shear_layer, dipole, taylor_green_perturbed], energy: 0.5}
     spinup: 0.0
+  test_long:             # long trajectories for statistical (climate-like) evaluation
+    n_traj: 16
+    nu: {dist: loguniform, low: 1.0e-3, high: 5.0e-3, exclude: [1.8e-3, 2.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+    n_frames: 400        # 100 time units

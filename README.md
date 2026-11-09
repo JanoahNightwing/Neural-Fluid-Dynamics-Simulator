@@ -4,10 +4,11 @@ A verified 2D incompressible Navier–Stokes solver, a reproducible turbulence d
 surrogates (CNN → U-Net → Fourier Neural Operator → hybrid) evaluated on accuracy, physical
 consistency, long-rollout stability, Reynolds-number generalisation and speed.
 
-**Status: Milestone M4 complete.** Verified solvers, a reproducible dataset pipeline, a shared
-training/evaluation stack, and four surrogate families (residual CNN, conditioned U-Net, a
-from-scratch Fourier Neural Operator, and the `neuraloperator` FNO as a reference) against two
-baselines; 94 tests.
+**Status: milestones M0–M4 complete; M5 tooling complete and dry-run, with the full study
+ready to run on a GPU ([docs/GPU_RUNBOOK.md](docs/GPU_RUNBOOK.md)).** Verified solvers, a
+reproducible dataset pipeline, a shared training/evaluation stack, four surrogate families
+(residual CNN, conditioned U-Net, a from-scratch Fourier Neural Operator, and the
+`neuraloperator` FNO as a reference), two baselines, and resumable study orchestration.
 
 ![verification](figures/verification.png)
 
@@ -82,6 +83,29 @@ python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
   energy and enstrophy ratios, energy spectra with per-band log errors, failure (NaN or energy
   > 10× truth), and inference time.
 
+## Studies (milestone M5)
+
+A study is one YAML plan (`configs/study/`) describing every training run and evaluation:
+
+```bash
+python -m nfds.study.run configs/study/m5_main.yaml --list   # plan and progress
+python -m nfds.study.run configs/study/m5_main.yaml          # run or resume
+python -m nfds.study.aggregate configs/study/m5_main.yaml    # REPORT.md, tables, figures
+```
+
+`m5_main` covers 50 runs: three models × four training regimes × three seeds, data scaling
+(50 to 1,000 trajectories) and few-shot adaptation to unseen high Reynolds numbers. Every run is
+evaluated on in-distribution, interpolation, low-/high-Re, structured-IC, 2×/4× resolution and
+long-horizon test sets. Finished work is detected on disk, so the study can be stopped and resumed;
+failures are logged and skipped. Aggregation reports mean ± std over seeds, bootstrap 95% CIs over
+test trajectories, and paired regime-vs-baseline differences. `m5_dev` is a tiny-budget dry run
+of the same pipeline on the dev dataset.
+
+Metrics beyond accuracy: PDE residual relative to the truth's, vorticity-distribution Wasserstein
+distance, long-run (second-half) energy and spectra, failure rates, and an accuracy-vs-cost
+Pareto front against the solver at several grid resolutions
+(`python -m nfds.evaluation.speed`).
+
 ## What is implemented
 
 | Component | File | Notes |
@@ -95,7 +119,8 @@ python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
 | Dataset pipeline | `src/nfds/data/` | YAML configs, deterministic per-trajectory seeding, spectral downsampling, quality control, HDF5 storage, windowed PyTorch `Dataset` |
 | Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), Fourier Neural Operator written from scratch (resolution-invariant spectral convolutions, periodic positional encoding, optional per-block channel MLP), `neuraloperator` reference adapter |
 | Training | `src/nfds/training/` | YAML configs with CLI overrides, four training regimes, cosine schedule, bf16 autocast, checkpoints, JSONL logs |
-| Evaluation | `src/nfds/evaluation/` | Steppers (model, persistence, coarse solver), autoregressive rollout, metrics, evaluate and compare CLIs |
+| Evaluation | `src/nfds/evaluation/` | Steppers (model, persistence, coarse solver), autoregressive rollout, accuracy/physics/long-run metrics, evaluate, compare and speed/Pareto CLIs |
+| Studies | `src/nfds/study/` | YAML study plans, resumable runner with failure log, aggregation with seed statistics and bootstrap CIs, report generation |
 
 ### Equations
 
@@ -149,6 +174,6 @@ docs/            experiment log
 - [x] **M2** Dataset pipeline (generator CLI, HDF5, splits, datasheet); full GPU run pending
 - [x] **M3** Baselines, CNN, U-Net, shared training and evaluation (dev-scale results; full runs on GPU pending)
 - [x] **M4** Fourier Neural Operator, checked against `neuraloperator`, zero-shot resolution transfer (dev scale)
-- [ ] **M5** Stability and generalisation study
+- [ ] **M5** Stability and generalisation study: tooling done and dry-run on dev data; full run on GPU pending
 - [ ] **M6** Interactive frontend
 - [ ] **M7** Report and stretch goal

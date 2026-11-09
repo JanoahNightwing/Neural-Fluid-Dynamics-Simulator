@@ -86,3 +86,37 @@ def test_config_validation_and_overrides(tmp_path):
     p.write_text("name: a\ndata: d\nmodel: {name: cnn, width: 8}\n")
     cfg = load_config(p, ["model.width=32", "optim.lr=0.01", "name=b"])
     assert cfg.model["width"] == 32 and cfg.optim.lr == 0.01 and cfg.name == "b"
+
+
+def test_training_on_a_subset_of_trajectories(tiny_dataset, tmp_path):
+    cfg = make_cfg(tiny_dataset, tmp_path, name="subset", train_trajectories=[0, 2],
+                   optim={"epochs": 1, "batch_size": 4})
+    summary = train(cfg, verbose=False)
+    assert summary["train_trajectories"] == 2
+    with pytest.raises(ValueError):
+        train(make_cfg(tiny_dataset, tmp_path, name="bad", train_trajectories=[0, 99]),
+              verbose=False)
+
+
+def test_fine_tuning_keeps_architecture_and_normalisation(tiny_dataset, tmp_path):
+    base = make_cfg(tiny_dataset, tmp_path, name="base", n_in=2,
+                    model={"name": "cnn", "width": 8, "depth": 1})
+    train(base, verbose=False)
+    ft = make_cfg(tiny_dataset, tmp_path, name="ft", init_checkpoint=str(tmp_path / "base/best.pt"),
+                  model={"name": "unet"},  # ignored when fine-tuning
+                  train_split="test_re", train_trajectories=[0, 1],
+                  val_split="test_re", val_trajectories=[1, 2],
+                  optim={"epochs": 1, "batch_size": 2, "lr": 1e-4})
+    train(ft, verbose=False)
+    a, b = (torch.load(tmp_path / f"{r}/last.pt", weights_only=False) for r in ("base", "ft"))
+    assert b["model_cfg"] == a["model_cfg"] and b["n_in"] == 2
+    assert (b["nu_log_mean"], b["nu_log_std"]) == (a["nu_log_mean"], a["nu_log_std"])
+    assert any(not torch.equal(a["model_state"][k], b["model_state"][k])
+               for k in a["model_state"])  # weights actually changed
+
+
+def test_max_batches_per_epoch_from_config(tiny_dataset, tmp_path):
+    cfg = make_cfg(tiny_dataset, tmp_path, name="cap", max_batches_per_epoch=1)
+    train(cfg, verbose=False)
+    lines = (tmp_path / "cap" / "metrics.jsonl").read_text().splitlines()
+    assert len(lines) == 2

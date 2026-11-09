@@ -1,0 +1,60 @@
+# Milestone 5: the main study, on the full dataset and a GPU.
+#
+#   python -m nfds.study.run configs/study/m5_main.yaml --list   # plan + progress
+#   python -m nfds.study.run configs/study/m5_main.yaml          # run / resume
+#   python -m nfds.study.aggregate configs/study/m5_main.yaml    # tables, figures, report
+#
+# Interrupt at any time; re-running skips finished training runs and evaluations.
+# Run a subset first with --only, e.g. --only "regimes-*-onestep-*-s0".
+
+name: m5_main
+data: data/forced_v1
+runs_dir: runs/m5_main
+results_dir: results/m5_main
+
+models:                       # base training configs (architecture, optimiser, epochs)
+  cnn: configs/train/cnn_v1.yaml
+  unet: configs/train/unet_v1.yaml
+  fno: configs/train/fno_v1.yaml
+
+overrides: []                 # applied to every run, e.g. ["optim.epochs=30"]
+model_overrides: {}
+
+experiments:
+  regimes:                    # core ablation: how to train for stable rollouts
+    models: [cnn, unet, fno]
+    regimes:
+      onestep: {type: onestep}
+      noise: {type: noise, noise_std: 0.05}
+      unroll4: {type: unroll, unroll: 4}
+      pushforward4: {type: pushforward, unroll: 4}
+    seeds: [0, 1, 2]
+  scaling:                    # test error vs number of training trajectories
+    models: [unet, fno]
+    regimes: {onestep: {type: onestep}}
+    train_trajectories: [50, 100, 250, 500, 1000]
+    seeds: [0]
+    evaluate: [test_id]
+  fewshot:                    # adapt to unseen high Re with a handful of trajectories
+    from: {experiment: regimes, regime: pushforward4, seed: 0}
+    models: [unet, fno]
+    split: test_re_high
+    split_trajectories: 64
+    shots: [4, 16]
+    val_trajectories: 8
+    overrides: ["optim.epochs=20", "optim.lr=1.0e-4", "optim.warmup_epochs=0.5"]
+
+evaluation:
+  horizon: 40                 # 10 time units
+  splits: [test_id, test_interp, test_re_low, test_re_high, test_ic]
+  resolution_transfer: {split: test_id, resolutions: [128, 256]}
+  long: {split: test_long, horizon: 396}
+  baselines: [persistence, coarse_solver]
+
+speed:                        # accuracy-vs-cost Pareto front
+  split: test_id
+  runs: "regimes-*-s0"
+  solver_resolutions: [32, 48, 64, 96, 128, 256]
+  horizon: 10
+  batch: 16
+  compile: false

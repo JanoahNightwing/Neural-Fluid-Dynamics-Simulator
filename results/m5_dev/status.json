@@ -1,0 +1,192 @@
+{
+ "counts": {
+  "trained": 0,
+  "skipped": 0,
+  "failed": 0,
+  "evaluated": 26,
+  "minutes": 3.7
+ },
+ "runs": [
+  {
+   "run": "regimes-cnn-onestep-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-onestep-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-noise-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-noise-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-unroll4-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-unroll4-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-pushforward4-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-cnn-pushforward4-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-onestep-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-onestep-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-noise-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-noise-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-unroll4-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-unroll4-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-unet-pushforward4-nall-s0",
+   "trained": true,
+   "evaluated": "7/7"
+  },
+  {
+   "run": "regimes-unet-pushforward4-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-onestep-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-onestep-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-noise-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-noise-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-unroll4-nall-s0",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-unroll4-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "regimes-fno-pushforward4-nall-s0",
+   "trained": true,
+   "evaluated": "7/7"
+  },
+  {
+   "run": "regimes-fno-pushforward4-nall-s1",
+   "trained": true,
+   "evaluated": "6/6"
+  },
+  {
+   "run": "scaling-unet-onestep-n8-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-unet-onestep-n16-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-unet-onestep-n32-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-unet-onestep-n64-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-fno-onestep-n8-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-fno-onestep-n16-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-fno-onestep-n32-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "scaling-fno-onestep-n64-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "fewshot-unet-pushforward4-k2-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "fewshot-unet-pushforward4-k4-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "fewshot-fno-pushforward4-k2-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  },
+  {
+   "run": "fewshot-fno-pushforward4-k4-s0",
+   "trained": true,
+   "evaluated": "1/1"
+  }
+ ],
+ "updated": "2026-11-09T15:31:53.058283+00:00"
+}

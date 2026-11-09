@@ -26,7 +26,7 @@ from nfds.evaluation.metrics import relative_l2
 from nfds.evaluation.rollout import rollout
 from nfds.evaluation.steppers import NeuralStepper, NuNormalizer
 from nfds.models import build_model, count_parameters
-from nfds.training.checkpoint import save_checkpoint
+from nfds.training.checkpoint import load_checkpoint, save_checkpoint
 from nfds.training.config import TrainConfig, load_config
 
 
@@ -115,23 +115,44 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
 
     stats = load_stats(cfg.data)
     unroll = cfg.regime.unroll
-    train_ds = TrajectoryWindowDataset(cfg.data, cfg.train_split, n_in=cfg.n_in, n_out=unroll)
-    val_ds = TrajectoryWindowDataset(cfg.data, cfg.val_split, n_in=cfg.n_in, n_out=1, stride=4)
-    val_data = load_split(cfg.data, cfg.val_split)
-    nu_norm = NuNormalizer.from_values(train_ds.meta["nu"])
+    init_model, init_ckpt = None, None
+    if cfg.init_checkpoint:
+        init_model, init_ckpt = load_checkpoint(cfg.init_checkpoint, device="cpu")
+        cfg.n_in = init_ckpt["n_in"]
+        for key in ("vorticity_mean", "vorticity_std"):
+            if not math.isclose(init_ckpt[key], stats[key], rel_tol=1e-6):
+                raise ValueError(f"checkpoint {key} differs from {cfg.data}/stats.json: "
+                                 "fine-tune on the dataset the model was trained on")
+    train_ds = TrajectoryWindowDataset(cfg.data, cfg.train_split, n_in=cfg.n_in, n_out=unroll,
+                                       trajectories=cfg.train_trajectories)
+    val_ds = TrajectoryWindowDataset(cfg.data, cfg.val_split, n_in=cfg.n_in, n_out=1, stride=4,
+                                     trajectories=cfg.val_trajectories)
+    val_data = load_split(cfg.data, cfg.val_split, trajectories=cfg.val_trajectories)
+    if init_ckpt is not None:  # keep the conditioning the model was trained with
+        nu_norm = NuNormalizer(init_ckpt["nu_log_mean"], init_ckpt["nu_log_std"])
+    else:
+        nu_norm = NuNormalizer.from_values(train_ds.meta["nu"])
     g = torch.Generator().manual_seed(cfg.seed)
     train_loader = DataLoader(train_ds, batch_size=cfg.optim.batch_size, shuffle=True,
                               drop_last=True, generator=g, num_workers=cfg.num_workers,
                               pin_memory=device.type == "cuda")
     val_loader = DataLoader(val_ds, batch_size=64)
 
-    model_cfg = dict(cfg.model)
-    model = build_model(model_cfg["name"], n_in=cfg.n_in,
-                        **{k: v for k, v in model_cfg.items() if k != "name"}).to(device)
+    if init_model is not None:
+        model_cfg = dict(init_ckpt["model_cfg"])
+        model = init_model.to(device)
+    else:
+        model_cfg = dict(cfg.model)
+        model = build_model(model_cfg["name"], n_in=cfg.n_in,
+                            **{k: v for k, v in model_cfg.items() if k != "name"}).to(device)
     n_params = count_parameters(model)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.optim.lr,
                             weight_decay=cfg.optim.weight_decay)
+    max_batches_per_epoch = max_batches_per_epoch or cfg.max_batches_per_epoch
     steps_per_epoch = min(len(train_loader), max_batches_per_epoch or len(train_loader))
+    if steps_per_epoch == 0:
+        raise ValueError(f"no complete training batch: {len(train_ds)} windows < batch size "
+                         f"{cfg.optim.batch_size}")
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda(cfg, steps_per_epoch))
     use_amp = cfg.amp and device.type == "cuda"
 
@@ -179,6 +200,8 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
                   f"({rec['epoch_seconds']:.0f} s)", flush=True)
 
     summary = {"name": cfg.name, "parameters": n_params, "best_val_rollout": best,
+               "train_trajectories": train_ds.num_trajectories,
+               "train_windows": len(train_ds),
                "epochs": cfg.optim.epochs, "train_seconds": time.perf_counter() - t_start,
                "final": history[-1]}
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))

@@ -1,0 +1,68 @@
+# Study report: m5_dev
+
+Data: `data/forced_dev`. Runs trained: 36/36. Result files: 172. Failures logged: 0.
+
+## Main results
+
+| Model | Regime | Seeds | test_id 1-step L2 | test_id corr. time | test_id mean L2 | interp corr. time | Re-low corr. time | struct. IC corr. time | 2× grid 1-step L2 | PDE residual ratio | long: energy ratio | long: vorticity W1 | long: failures |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| coarse_solver | - | – | 0.077 | 7.50 | 0.404 | 7.75 | 10.00 | 7.33 | 0.000 | 1.12 | 1.00 | 0.021 | 0% |
+| persistence | - | – | 0.506 | 0.23 | 1.282 | 0.22 | 0.39 | 0.15 | 0.507 | 2.44 | 1.03 | 0.025 | 0% |
+| cnn | noise | 2 | 0.467 ± 0.001 | 0.27 ± 0.00 [0.20, 0.31] | 1.051 ± 0.030 | 0.25 ± 0.00 | 0.45 ± 0.01 | 0.21 ± 0.00 | 0.484 ± 0.001 | 0.93 ± 0.10 | 0.24 ± 0.34 | 3.037 ± 3.151 | 31% ± 27% |
+| cnn | onestep | 2 | 0.468 ± 0.001 | 0.27 ± 0.00 [0.20, 0.31] | 1.053 ± 0.033 | 0.25 ± 0.00 | 0.45 ± 0.01 | 0.21 ± 0.00 | 0.484 ± 0.001 | 0.94 ± 0.10 | 0.26 ± 0.37 | 2.869 ± 2.937 | 31% ± 27% |
+| cnn | pushforward4 | 2 | 0.491 ± 0.001 | 0.23 ± 0.00 [0.17, 0.28] | 0.970 ± 0.003 | 0.23 ± 0.01 | 0.42 ± 0.00 | 0.15 ± 0.00 | 0.488 ± 0.001 | 0.83 ± 0.00 | 0.00 ± 0.00 | 0.696 ± 0.034 | 0% ± 0% |
+| cnn | unroll4 | 2 | 0.482 ± 0.003 | 0.27 ± 0.00 [0.20, 0.31] | 0.969 ± 0.000 | 0.24 ± 0.01 | 0.43 ± 0.01 | 0.21 ± 0.00 | 0.481 ± 0.003 | 0.82 ± 0.00 | 0.00 ± 0.00 | 0.664 ± 0.053 | 0% ± 0% |
+| fno | noise | 2 | 0.490 ± 0.001 | 0.23 ± 0.00 [0.17, 0.28] | 0.958 ± 0.012 | 0.22 ± 0.00 | 0.41 ± 0.00 | 0.15 ± 0.00 | 0.491 ± 0.001 | 0.90 ± 0.00 | 0.04 ± 0.03 | 0.686 ± 0.018 | 0% ± 0% |
+| fno | onestep | 2 | 0.490 ± 0.001 | 0.23 ± 0.00 [0.17, 0.28] | 0.957 ± 0.011 | 0.22 ± 0.00 | 0.41 ± 0.00 | 0.15 ± 0.00 | 0.491 ± 0.001 | 0.90 ± 0.00 | 0.04 ± 0.03 | 0.687 ± 0.018 | 0% ± 0% |
+| fno | pushforward4 | 2 | 0.507 ± 0.001 | 0.23 ± 0.00 [0.17, 0.28] | 0.961 ± 0.003 | 0.20 ± 0.00 | 0.37 ± 0.01 | 0.15 ± 0.00 | 0.508 ± 0.001 | 0.88 ± 0.01 | 0.04 ± 0.01 | 0.681 ± 0.021 | 0% ± 0% |
+| fno | unroll4 | 2 | 0.501 ± 0.001 | 0.23 ± 0.00 [0.17, 0.28] | 0.959 ± 0.005 | 0.20 ± 0.00 | 0.38 ± 0.00 | 0.15 ± 0.00 | 0.502 ± 0.001 | 0.89 ± 0.00 | 0.05 ± 0.02 | 0.677 ± 0.011 | 0% ± 0% |
+| unet | noise | 2 | 0.329 ± 0.003 | 0.72 ± 0.00 [0.59, 0.84] | 1.224 ± 0.018 | 0.66 ± 0.01 | 0.88 ± 0.04 | 0.19 ± 0.03 | 0.452 ± 0.006 | 2.32 ± 0.07 | 3.11 ± 1.17 | 0.311 ± 0.075 | 44% ± 62% |
+| unet | onestep | 2 | 0.331 ± 0.003 | 0.70 ± 0.01 [0.57, 0.82] | 1.221 ± 0.011 | 0.66 ± 0.01 | 0.86 ± 0.02 | 0.18 ± 0.01 | 0.451 ± 0.005 | 2.35 ± 0.09 | 3.81 ± 2.09 | 0.447 ± 0.080 | 44% ± 62% |
+| unet | pushforward4 | 2 | 0.457 ± 0.007 | 0.41 ± 0.02 [0.30, 0.53] | 1.059 ± 0.027 | 0.36 ± 0.02 | 0.80 ± 0.03 | 0.15 ± 0.00 | 0.459 ± 0.014 | 1.17 ± 0.14 | 0.53 ± 0.05 | 0.370 ± 0.141 | 0% ± 0% |
+| unet | unroll4 | 2 | 0.402 ± 0.006 | 0.59 ± 0.06 [0.45, 0.73] | 1.116 ± 0.035 | 0.51 ± 0.03 | 1.02 ± 0.07 | 0.19 ± 0.00 | 0.439 ± 0.002 | 1.84 ± 0.21 | 2.42 ± 0.68 | 0.518 ± 0.398 | 0% ± 0% |
+
+Mean ± std over seeds; test_id correlation time also shows a 95% bootstrap CI over test trajectories. Correlation times in simulation time units (threshold ρ = 0.8). PDE residual ratio: prediction residual / truth residual (1 = as consistent as the data). Long-run metrics over the second half of the test_long rollouts.
+
+## Effect of the training regime
+
+Paired comparison of each regime against one-step training on the same test_id trajectories (time with correlation > 0.8, averaged over seeds).
+
+| Model | Regime | Δ high_corr_time vs onestep (paired, 95% CI) | Significant |
+| --- | --- | --- | --- |
+| cnn | noise | +0.00 [+0.00, +0.00] | no |
+| cnn | pushforward4 | -0.03 [-0.08, +0.00] | no |
+| cnn | unroll4 | +0.00 [+0.00, +0.00] | no |
+| fno | noise | +0.00 [+0.00, +0.00] | no |
+| fno | pushforward4 | +0.00 [+0.00, +0.00] | no |
+| fno | unroll4 | +0.00 [+0.00, +0.00] | no |
+| unet | noise | +0.02 [+0.00, +0.05] | no |
+| unet | pushforward4 | -0.29 [-0.34, -0.24] | yes |
+| unet | unroll4 | -0.11 [-0.16, -0.05] | yes |
+
+## Rollout error by training regime
+
+![Rollout error by training regime](figures/regime_rollouts.png)
+
+## Generalisation across Reynolds number
+
+![Generalisation across Reynolds number](figures/reynolds.png)
+
+## Data scaling
+
+![Data scaling](figures/scaling.png)
+
+## Long-run statistics
+
+![Long-run statistics](figures/long_run.png)
+
+## Few-shot adaptation
+
+![Few-shot adaptation](figures/fewshot.png)
+
+## Accuracy vs cost
+
+![Pareto](../figures/pareto.png)
+
+## Status
+
+Last run: 2026-11-09T15:31:53.058283+00:00, counts: {'trained': 0, 'skipped': 0, 'failed': 0, 'evaluated': 26, 'minutes': 3.7}

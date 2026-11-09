@@ -6,7 +6,8 @@
         --baseline coarse_solver --horizon 40 --out results/forced_dev
 
 Writes <out>/<name>__<split>.json with error/correlation/energy curves,
-high-correlation times, spectra, spectral errors, failure statistics and timing.
+high-correlation times, spectra, spectral errors, PDE-residual and distribution metrics,
+long-run statistics, failure statistics, timing and per-trajectory values.
 """
 
 from __future__ import annotations
@@ -39,10 +40,35 @@ def make_baseline(name: str, data_root: str | Path, split: str, n: int,
     raise KeyError(f"unknown baseline {name!r}")
 
 
+def dataset_physics(data_root: str | Path, split: str, n: int) -> dict:
+    """Drag, forcing (on an n² grid) and save interval used to generate a split."""
+    with h5py.File(Path(data_root) / f"{split}.h5") as f:
+        attrs = dict(f.attrs)
+    cfg = json.loads(attrs["config_json"])
+    forcing = None
+    if cfg["forcing"]["type"] == "kolmogorov":
+        from nfds.forcing import KolmogorovForcing
+        from nfds.grid import SpectralGrid
+
+        forcing = torch.as_tensor(KolmogorovForcing(
+            cfg["forcing"]["wavenumber"], cfg["forcing"].get("amplitude", 1.0)).vorticity(
+            SpectralGrid(n, length=cfg["domain_length"])))
+    return {"drag": float(attrs["drag"]), "forcing": forcing, "save_dt": float(attrs["save_dt"])}
+
+
 def evaluate_stepper(stepper: Stepper, data_root: str | Path, split: str, horizon: int,
                      resolution: int | None = None, max_trajectories: int | None = None,
-                     batch_size: int = 64, corr_threshold: float = 0.8) -> dict:
-    data = load_split(data_root, split, resolution)
+                     batch_size: int = 64, corr_threshold: float = 0.8,
+                     trajectories: tuple[int, int] | list[int] | None = None,
+                     physics: bool = True) -> dict:
+    """Roll a stepper out on a split and compute every metric of proposal section 7.
+
+    Short-horizon accuracy (relative L2, correlation, high-correlation time), physical
+    consistency (energy/enstrophy ratios, spectra, PDE residual relative to the truth's,
+    vorticity distribution), long-run statistics over the second half of the horizon,
+    failures, and timing. Per-trajectory scalars are included for confidence intervals.
+    """
+    data = load_split(data_root, split, resolution, trajectories=trajectories)
     w = torch.from_numpy(data["vorticity"]).double()
     nu = torch.from_numpy(data["nu"]).double()
     if max_trajectories:
@@ -66,11 +92,20 @@ def evaluate_stepper(stepper: Stepper, data_root: str | Path, split: str, horizo
     fail = M.failure_step(pred, e_true.mean(dim=1), grid)
     spec_p, spec_t = M.mean_spectrum(pred, grid), M.mean_spectrum(true, grid)
     last = slice(max(0, horizon - max(1, horizon // 4)), horizon)  # last quarter of horizon
+    late = slice(horizon // 2, horizon)  # second half: long-run statistics
     bands = M.default_bands(n)
+    ok = fail >= horizon  # trajectories that never failed
 
-    return {
+    def ratio_of_means(p, t):
+        if not ok.any():
+            return None
+        return M.finite_or_none(float(p[ok][:, late].mean() / t[ok][:, late].mean()))
+
+    w_std = float(true.std())
+    out = {
         "stepper": stepper.name, "split": split, "n_trajectories": n_traj, "n_in": n_in,
         "horizon": horizon, "save_dt": save_dt, "resolution": n,
+        "trajectory_range": list(trajectories) if trajectories else None,
         "times": (np.arange(1, horizon + 1) * save_dt).tolist(),
         "rel_l2": M.summarise_curve(rel),
         "correlation": M.summarise_curve(corr),
@@ -82,16 +117,45 @@ def evaluate_stepper(stepper: Stepper, data_root: str | Path, split: str, horizo
         "high_corr_time_mean": float(hct.mean()),
         "high_corr_time_median": float(hct.median()),
         "high_corr_censored_fraction": float(censored.double().mean()),
-        "failure_fraction": float((fail < horizon).double().mean()),
+        "failure_fraction": float((~ok).double().mean()),
         "failure_step_median": float(fail.double().median()),
         "spectrum_k": list(range(spec_t.shape[-1])),
         "spectrum_pred_last": spec_p[last].mean(0).tolist(),
         "spectrum_true_last": spec_t[last].mean(0).tolist(),
         "spectral_log_error_last": M.spectral_error(spec_p[last].mean(0), spec_t[last].mean(0),
                                                     bands),
+        # long-run statistics over the second half of the horizon (non-failed trajectories)
+        "late_energy_ratio": ratio_of_means(e_pred, e_true),
+        "late_enstrophy_ratio": ratio_of_means(z_pred, z_true),
+        "late_vorticity_w1": M.finite_or_none(
+            M.wasserstein_1d(pred[ok][:, late], true[ok][:, late]) / w_std) if ok.any() else None,
+        # spectra over the same non-failed trajectories as the other long-run statistics
+        "late_n_trajectories": int(ok.sum()),
+        "late_spectrum_pred": (M.mean_spectrum(pred[ok][:, late], grid).mean(0).tolist()
+                               if ok.any() else None),
+        "late_spectrum_true": (M.mean_spectrum(true[ok][:, late], grid).mean(0).tolist()
+                               if ok.any() else None),
         "seconds": seconds,
         "ms_per_step_per_trajectory": 1e3 * seconds / (horizon * n_traj),
+        "per_trajectory": {
+            "nu": nu.tolist(),
+            "rel_l2_first_step": rel[:, 0].tolist(),
+            "rel_l2_mean": torch.nan_to_num(rel, nan=float("inf")).mean(1).tolist(),
+            "high_corr_time": hct.tolist(),
+            "censored": censored.tolist(),
+            "failure_step": fail.tolist(),
+        },
     }
+    if physics:
+        phys = dataset_physics(data_root, split, n)
+        seq_pred = torch.cat([w[:, n_in - 1 : n_in], pred], dim=1)
+        seq_true = w[:, n_in - 1 : n_in + horizon]
+        r_pred = M.pde_residual(seq_pred, nu, save_dt, grid, phys["drag"], phys["forcing"])
+        r_true = M.pde_residual(seq_true, nu, save_dt, grid, phys["drag"], phys["forcing"])
+        ratio = r_pred.mean(1) / r_true.mean(1)
+        out["pde_residual_ratio"] = M.finite_or_none(float(M.nanmean(ratio)))
+        out["per_trajectory"]["pde_residual_ratio"] = ratio.tolist()
+    return out
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -127,7 +191,7 @@ def main(argv: list[str] | None = None) -> None:
     out.mkdir(parents=True, exist_ok=True)
     label = args.split if n == train_res else f"{args.split}@{n}"
     path = out / f"{name}__{label}.json"
-    path.write_text(json.dumps(res, indent=1))
+    path.write_text(json.dumps(M.jsonable(res), indent=1, allow_nan=False))
     print(f"{name} on {label}: first-step rel. L2 {res['rel_l2_first_step']:.4f}, "
           f"mean over {res['horizon']} steps {res['rel_l2_mean_over_horizon']}, "
           f"high-corr time {res['high_corr_time_mean']:.2f} "

@@ -1,5 +1,6 @@
 """Dataset pipeline: downsampling, determinism, splits, statistics, quality flags, loading."""
 
+import copy
 import json
 
 import numpy as np
@@ -171,3 +172,42 @@ def test_window_dataset_never_crosses_trajectories(tiny_dataset):
 def test_recomputed_stats_helper(tiny_dataset):
     stats = compute_stats(tiny_dataset / "train.h5", 16)
     assert stats["vorticity_std"] > 0
+
+
+def test_per_split_frame_count_override(tmp_path):
+    cfg = tiny_config()
+    cfg.split("val").n_frames = 9
+    generate(cfg, tmp_path, splits=["train", "val"], verbose=False)
+    with h5py.File(tmp_path / "val.h5") as f, h5py.File(tmp_path / "train.h5") as g:
+        assert f["vorticity_16"].shape[1] == 9 and len(f["times"]) == 9
+        assert g["vorticity_16"].shape[1] == 6
+    assert "| 9 |" in (tmp_path / "DATASHEET.md").read_text()
+
+
+def test_spectral_resample_up_and_down_exact_for_band_limited_fields():
+    from nfds.data.transforms import spectral_resample
+
+    def field(n):
+        x, y = SpectralGrid(n).coords
+        return torch.as_tensor(np.sin(2 * x + y) + 0.4 * np.cos(3 * y - x))
+
+    for n_in, n_out in ((16, 64), (64, 16), (32, 48), (48, 32)):
+        np.testing.assert_allclose(spectral_resample(field(n_in), n_out).numpy(),
+                                   field(n_out).numpy(), atol=1e-12)
+
+
+def test_adding_a_split_keeps_existing_ones_in_manifest(tmp_path):
+    cfg = tiny_config()
+    generate(cfg, tmp_path, splits=["train", "val"], verbose=False)
+    cfg2 = tiny_config()
+    cfg2.splits.append(copy.deepcopy(cfg2.split("val")))
+    cfg2.splits[-1].name = "test_new"
+    generate(cfg2, tmp_path, splits=["train", "test_new"], verbose=False)
+    files = json.loads((tmp_path / "manifest.json").read_text())["files"]
+    assert set(files) == {"train.h5", "val.h5", "test_new.h5"}
+    # changing a split's settings invalidates its old entry
+    cfg3 = tiny_config()
+    cfg3.split("val").n_traj = 3
+    generate(cfg3, tmp_path, splits=["train"], verbose=False)
+    files = json.loads((tmp_path / "manifest.json").read_text())["files"]
+    assert "val.h5" not in files
