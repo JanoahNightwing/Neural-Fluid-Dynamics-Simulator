@@ -91,3 +91,17 @@ def test_coarse_solver_has_truncation_floor_on_coarser_grid(tiny_dataset):
     solver = make_baseline("coarse_solver", tiny_dataset, "val", n=16)
     rel = evaluate_stepper(solver, tiny_dataset, "val", horizon=3)["rel_l2"]["mean"]
     assert rel[0] > 0.05 and max(rel) / min(rel) < 1.5
+
+
+def test_evaluate_cli_resolution_transfer_label(tiny_dataset, tmp_path):
+    from nfds.evaluation.evaluate import main
+
+    main(["--data", str(tiny_dataset), "--split", "test_ic", "--baseline", "persistence",
+          "--resolution", "32", "--horizon", "2", "--out", str(tmp_path)])
+    main(["--data", str(tiny_dataset), "--split", "test_ic", "--baseline", "persistence",
+          "--horizon", "2", "--out", str(tmp_path)])
+    import json
+
+    hi = json.loads((tmp_path / "persistence__test_ic@32.json").read_text())
+    lo = json.loads((tmp_path / "persistence__test_ic.json").read_text())
+    assert hi["resolution"] == 32 and lo["resolution"] == 16 and hi["train_resolution"] == 16

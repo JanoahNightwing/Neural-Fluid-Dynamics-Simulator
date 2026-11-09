@@ -1,0 +1,10 @@
+# Fourier Neural Operator (our implementation) on the dev dataset.
+#   python -m nfds.training.train configs/train/fno_dev.yaml
+name: fno_dev
+data: data/forced_dev
+model: {name: fno, width: 32, modes: 12, n_layers: 4, proj_width: 128, channel_mlp: false}  # true: E006
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 30, batch_size: 32, warmup_epochs: 1}
+val: {horizon: 20}
+seed: 0

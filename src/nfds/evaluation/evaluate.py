@@ -102,28 +102,33 @@ def main(argv: list[str] | None = None) -> None:
     g.add_argument("--checkpoint")
     g.add_argument("--baseline", choices=["persistence", "coarse_solver"])
     p.add_argument("--horizon", type=int, default=40)
+    p.add_argument("--resolution", type=int, help="stored grid to evaluate on (default: the "
+                   "training resolution); e.g. 128 for a zero-shot resolution-transfer test")
     p.add_argument("--max-trajectories", type=int)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--name", help="label for the results file (default: run or baseline name)")
     p.add_argument("--out", default="results")
     args = p.parse_args(argv)
 
+    train_res = json.loads((Path(args.data) / "stats.json").read_text())["resolution"]
+    n = args.resolution or train_res
     if args.checkpoint:
         from nfds.training.checkpoint import load_stepper
 
         stepper = load_stepper(args.checkpoint, device=args.device)
     else:
-        n = json.loads((Path(args.data) / "stats.json").read_text())["resolution"]
         stepper = make_baseline(args.baseline, args.data, args.split, n, args.device)
     name = args.name or stepper.name
-    res = evaluate_stepper(stepper, args.data, args.split, args.horizon,
+    res = evaluate_stepper(stepper, args.data, args.split, args.horizon, resolution=n,
                            max_trajectories=args.max_trajectories)
     res["name"] = name
+    res["train_resolution"] = train_res
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"{name}__{args.split}.json"
+    label = args.split if n == train_res else f"{args.split}@{n}"
+    path = out / f"{name}__{label}.json"
     path.write_text(json.dumps(res, indent=1))
-    print(f"{name} on {args.split}: first-step rel. L2 {res['rel_l2_first_step']:.4f}, "
+    print(f"{name} on {label}: first-step rel. L2 {res['rel_l2_first_step']:.4f}, "
           f"mean over {res['horizon']} steps {res['rel_l2_mean_over_horizon']}, "
           f"high-corr time {res['high_corr_time_mean']:.2f} "
           f"({100 * res['high_corr_censored_fraction']:.0f}% censored), "

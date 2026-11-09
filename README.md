@@ -4,9 +4,10 @@ A verified 2D incompressible Navier–Stokes solver, a reproducible turbulence d
 surrogates (CNN → U-Net → Fourier Neural Operator → hybrid) evaluated on accuracy, physical
 consistency, long-rollout stability, Reynolds-number generalisation and speed.
 
-**Status: Milestone M3 complete.** Verified solvers, a reproducible dataset pipeline, and a shared
-training/evaluation stack with a residual CNN, a viscosity-conditioned U-Net and two baselines;
-79 tests.
+**Status: Milestone M4 complete.** Verified solvers, a reproducible dataset pipeline, a shared
+training/evaluation stack, and four surrogate families (residual CNN, conditioned U-Net, a
+from-scratch Fourier Neural Operator, and the `neuraloperator` FNO as a reference) against two
+baselines; 94 tests.
 
 ![verification](figures/verification.png)
 
@@ -64,6 +65,9 @@ python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
 python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
     --baseline coarse_solver --out results/forced_dev
 python -m nfds.evaluation.compare results/forced_dev --split test_id --out figures/compare.png
+# zero-shot resolution transfer: a 64²-trained model evaluated on the 128² copy of test_id
+python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
+    --checkpoint runs/fno_dev/best.pt --resolution 128 --out results/forced_dev
 ```
 
 - **Models** predict the next frame as a residual on the last input frame, with zero-initialised
@@ -89,7 +93,7 @@ python -m nfds.evaluation.compare results/forced_dev --split test_id --out figur
 | Initial conditions | `src/nfds/initial_conditions.py` | Taylor–Green, Gaussian random field, double shear layer, vortex dipole |
 | Forcing | `src/nfds/forcing.py` | Kolmogorov forcing with its laminar solution |
 | Dataset pipeline | `src/nfds/data/` | YAML configs, deterministic per-trajectory seeding, spectral downsampling, quality control, HDF5 storage, windowed PyTorch `Dataset` |
-| Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), model registry |
+| Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), Fourier Neural Operator written from scratch (resolution-invariant spectral convolutions, periodic positional encoding, optional per-block channel MLP), `neuraloperator` reference adapter |
 | Training | `src/nfds/training/` | YAML configs with CLI overrides, four training regimes, cosine schedule, bf16 autocast, checkpoints, JSONL logs |
 | Evaluation | `src/nfds/evaluation/` | Steppers (model, persistence, coarse solver), autoregressive rollout, metrics, evaluate and compare CLIs |
 
@@ -144,7 +148,7 @@ docs/            experiment log
 - [x] **M1** Batched PyTorch (GPU) solver, tested against the NumPy reference (GPU benchmark pending)
 - [x] **M2** Dataset pipeline (generator CLI, HDF5, splits, datasheet); full GPU run pending
 - [x] **M3** Baselines, CNN, U-Net, shared training and evaluation (dev-scale results; full runs on GPU pending)
-- [ ] **M4** Fourier Neural Operator
+- [x] **M4** Fourier Neural Operator, checked against `neuraloperator`, zero-shot resolution transfer (dev scale)
 - [ ] **M5** Stability and generalisation study
 - [ ] **M6** Interactive frontend
 - [ ] **M7** Report and stretch goal

@@ -151,3 +151,68 @@ Figure: `figures/compare_dev_test_id.png`; table: `figures/compare_dev_test_id.m
 **Conclusion.** The pipeline works. At dev scale on CPU, neither network beats the coarse solver on
 accuracy or speed. Next: full-size models on `forced_v1` on the GPU (`configs/train/*_v1.yaml`),
 then the FNO (M4) and the training-regime ablation (M5).
+
+---
+
+## 2026-11-09 · E006 · From-scratch FNO: correctness against `neuraloperator`, and resolution transfer
+
+**Questions.** (1) Is the from-scratch FNO correct? The M4 exit criterion was test error within
+about 10% of the `neuraloperator` library on the same data. (2) Does zero-shot resolution transfer
+hold up?
+
+**Setup.** As E005: `forced_dev`, 12 CPU epochs, one-step regime, 1 seed, `test_id` (16
+trajectories), 40-step rollouts. All FNOs: width 32, 4 layers, about 1.2M parameters. Ours uses
+modes = 12 (|ky| ≤ 12, kx < 12); the library uses n_modes = 24, about the same set because its
+convention counts total modes per axis. Timings measured on an idle 2-core CPU.
+
+**Unit-level correctness (tests/test_fno.py).** The spectral layer reproduces the analytic Fourier
+multiplier for single modes in both weight blocks, including the kx = 0 column where both blocks
+contribute. It drops modes above the cutoff, and gives identical output functions for band-limited
+inputs on 32² and 64² grids.
+
+**Results at the training resolution (64²).**
+
+| Model | 1-step rel. L2 | Mean rel. L2 (40 steps) | High-corr. time | ms/step/traj |
+| --- | --- | --- | --- | --- |
+| coarse solver | **0.077** | **0.40** | **7.50** | 3.7 |
+| U-Net (E005) | 0.084 | 0.92 | 2.80 | 5.8 |
+| FNO, ours (paper architecture) | 0.141 | 1.01 | 1.97 | 3.2 |
+| FNO, ours + per-block channel MLP | 0.128 | 0.98 | 2.36 | 4.2 |
+| FNO, `neuraloperator` 2.0 | 0.132 | 0.94 | 2.58 | 4.4 |
+
+**Finding 1: correctness.** The paper-architecture FNO was 7% behind the library on one-step error
+and 24% on high-correlation time. Inspecting the library's defaults showed three architectural
+differences rather than a bug: a per-block channel MLP, a two-layer lifting, and raw (non-periodic)
+coordinate channels. Adding the channel MLP to ours (`model.channel_mlp=true`) closed the one-step
+gap (0.128 vs 0.132, now 3% better). High-correlation time is within 9% (2.36 vs 2.58), from a
+single seed each. Exit criterion met. The remaining rollout difference needs multi-seed runs (M5)
+before reading anything into it.
+
+**Finding 2: zero-shot resolution transfer (trained at 64², evaluated on the 128² copy of
+`test_id`).**
+
+| Model | 1-step rel. L2 at 64² → 128² | High-corr. time at 64² → 128² | Energy at 128² |
+| --- | --- | --- | --- |
+| FNO, ours | 0.141 → 0.143 | 1.97 → 1.97 | stable |
+| FNO + channel MLP | 0.128 → 0.130 | 2.36 → 2.36 | stable |
+| `neuraloperator` FNO | 0.132 → 0.135 | 2.58 → 2.56 | stable |
+| U-Net | 0.084 → 0.401 | 2.80 → 0.33 | loses ~75% |
+| CNN | 0.453 → 0.483 | 0.28 → 0.27 | grows |
+
+The FNOs transfer without loss of accuracy; the convolutional models do not, because their kernels
+are tied to the pixel size. But the FNOs also gain nothing from the finer grid: their spectra fall
+below the truth at the new small scales (log-spectrum error ~0.9 for 12 ≤ k < 42), because their
+retained modes cannot create them. That matches the caveat in the proposal (section 6.2). "Zero-shot
+super-resolution" here means "consistent at a finer grid", not "more accurate". The 128² coarse
+solver is exact here only because `forced_dev` was simulated at 128². On `forced_v1` (simulated at
+256²) it becomes a real baseline.
+
+**Finding 3: at dev scale the U-Net still leads the learned models** on one-step error and
+correlation time, and the coarse solver leads everything, as in E005.
+
+**Timing note.** Two earlier measurements were taken while a training job was using the CPU and
+were up to 4× too slow (15 ms instead of 3.2 ms for the FNO). All timings above were re-measured on an
+idle machine. In future, benchmark with nothing else running.
+
+**Next.** Full-size models on `forced_v1` on the GPU (`configs/train/{cnn,unet,fno}_v1.yaml`), then
+the M5 study with multiple seeds.

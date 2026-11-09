@@ -1,0 +1,12 @@
+# Fourier Neural Operator on the full GPU dataset.
+#   python -m nfds.training.train configs/train/fno_v1.yaml
+name: fno_v1
+data: data/forced_v1
+model: {name: fno, width: 64, modes: 16, n_layers: 4, proj_width: 128, channel_mlp: true}
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 50, batch_size: 64, warmup_epochs: 1}
+val: {horizon: 40}
+amp: true
+num_workers: 0   # data is already in memory; workers would only copy it (slow on Windows)
+seed: 0

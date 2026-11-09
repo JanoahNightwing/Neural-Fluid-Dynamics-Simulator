@@ -1,0 +1,12 @@
+# Reference FNO from the neuraloperator library, matched to fno_dev for a correctness check.
+# Library n_modes counts total modes per axis, so n_modes: 24 ~ our modes: 12.
+#   pip install neuraloperator
+#   python -m nfds.training.train configs/train/neuralop_fno_dev.yaml
+name: neuralop_fno_dev
+data: data/forced_dev
+model: {name: neuralop_fno, width: 32, n_modes: 24, n_layers: 4}
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 30, batch_size: 32, warmup_epochs: 1}
+val: {horizon: 20}
+seed: 0
