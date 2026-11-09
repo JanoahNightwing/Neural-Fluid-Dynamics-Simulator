@@ -4,8 +4,8 @@ A verified 2D incompressible Navier–Stokes solver, a reproducible turbulence d
 surrogates (CNN → U-Net → Fourier Neural Operator → hybrid) evaluated on accuracy, physical
 consistency, long-rollout stability, Reynolds-number generalisation and speed.
 
-**Status: Milestone M1 complete.** A NumPy reference solver and a batched, differentiable PyTorch
-solver (CPU/GPU) that matches it to round-off; 35 verification tests.
+**Status: Milestone M2 complete.** Verified NumPy and batched PyTorch solvers, plus a reproducible
+dataset pipeline with quality control, trajectory-level splits and a datasheet; 49 tests.
 
 ![verification](figures/verification.png)
 
@@ -13,7 +13,7 @@ solver (CPU/GPU) that matches it to round-off; 35 verification tests.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,data]"
 # PyTorch: CPU-only build on a laptop (smaller download) ...
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 # ... or the default CUDA build on a machine with an NVIDIA GPU
@@ -23,6 +23,34 @@ python scripts/verify.py                    # convergence + Taylor–Green figur
 python scripts/demo_decaying.py             # 256² decaying turbulence (~40 s on a laptop CPU)
 python scripts/demo_forced.py               # batched Kolmogorov-forced turbulence (PyTorch)
 python scripts/benchmark_solver.py          # NumPy vs PyTorch CPU/GPU throughput
+```
+
+## Datasets
+
+```bash
+# laptop-scale development set (~10 min on CPU)
+python -m nfds.data.generate configs/datasets/forced_dev.yaml --out data/forced_dev
+# full dataset (GPU)
+python -m nfds.data.generate configs/datasets/forced_v1.yaml --out data/forced_v1 --device cuda
+python -m nfds.data.inspect data/forced_dev        # sample frames, viscosity histogram, quality
+```
+
+A YAML config fully determines a dataset. The generator spins each trajectory up to statistical
+stationarity, records frames, downsamples them spectrally, checks every trajectory's resolution and
+CFL number, and writes one HDF5 file per split plus `stats.json` (train-only normalisation),
+`manifest.json` (SHA-256 of every file) and an auto-generated `DATASHEET.md`.
+
+| Split (forced_v1) | Trajectories | Purpose |
+| --- | --- | --- |
+| train / val | 1000 / 100 | ν log-uniform in [1e-3, 5e-3], band [1.8e-3, 2.4e-3] held out |
+| test_id | 64 | same distribution, new seeds; stored at 64², 128² and 256² for resolution transfer |
+| test_interp | 64 | ν inside the held-out band |
+| test_re_low / test_re_high | 64 / 64 | Re 100–133 / Re 2000–3333 |
+| test_ic | 60 | shear layers, vortex dipoles, perturbed Taylor–Green, recorded from t = 0 |
+
+```python
+from nfds.data.dataset import TrajectoryWindowDataset
+ds = TrajectoryWindowDataset("data/forced_dev", "train", n_in=1, n_out=4)  # normalised windows
 ```
 
 ## What is implemented
@@ -35,6 +63,7 @@ python scripts/benchmark_solver.py          # NumPy vs PyTorch CPU/GPU throughpu
 | Diagnostics | `src/nfds/diagnostics.py` | Energy, enstrophy, palinstrophy, spectrum E(k), resolution ratio |
 | Initial conditions | `src/nfds/initial_conditions.py` | Taylor–Green, Gaussian random field, double shear layer, vortex dipole |
 | Forcing | `src/nfds/forcing.py` | Kolmogorov forcing with its laminar solution |
+| Dataset pipeline | `src/nfds/data/` | YAML configs, deterministic per-trajectory seeding, spectral downsampling, quality control, HDF5 storage, windowed PyTorch `Dataset` |
 
 ### Equations
 
@@ -73,6 +102,7 @@ ripples at a ratio of ~6e-5, so the acceptance threshold for the dataset will li
 
 ```
 src/nfds/        package: grid, solver, diagnostics, initial conditions, forcing
+configs/         dataset configs
 tests/           verification suite (runs in CI)
 scripts/         figure and demo scripts
 figures/         committed verification figures
@@ -83,7 +113,7 @@ docs/            experiment log
 
 - [x] **M0** Foundations: repo, CI, NumPy reference solver, verification suite
 - [x] **M1** Batched PyTorch (GPU) solver, tested against the NumPy reference (GPU benchmark pending)
-- [ ] **M2** Dataset pipeline (generator CLI, HDF5/Zarr, splits, datasheet)
+- [x] **M2** Dataset pipeline (generator CLI, HDF5, splits, datasheet); full GPU run pending
 - [ ] **M3** Baselines, CNN, U-Net
 - [ ] **M4** Fourier Neural Operator
 - [ ] **M5** Stability and generalisation study

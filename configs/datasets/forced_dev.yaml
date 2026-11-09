@@ -1,0 +1,61 @@
+# Small development dataset with the same structure as forced_v1, sized for a laptop CPU
+# (roughly 10-20 minutes). Use it to develop models before the full GPU dataset exists.
+#
+#   python -m nfds.data.generate configs/datasets/forced_dev.yaml --out data/forced_dev
+#
+# Simulated at 128² (adequately resolved for nu >= 2e-3, see E003), stored at 64².
+
+name: forced_dev
+version: 1
+description: >
+  Laptop-scale development version of forced_v1: same forcing and splits, fewer and
+  shorter trajectories, 128² simulation grid, viscosities restricted to [2e-3, 5e-3].
+base_seed: 7
+drag: 0.1
+forcing:
+  type: kolmogorov
+  wavenumber: 4
+  amplitude: 1.0
+
+simulation:
+  sim_n: 128
+  train_n: 64
+  dt: 5.0e-3
+  save_dt: 0.25
+  n_frames: 60
+  spinup: 10.0
+  scheme: ifrk4
+  dtype: float32
+  batch_size: 16
+  max_cfl: 1.0
+
+quality:
+  max_resolution_ratio: 2.0e-5
+
+splits:
+  train:
+    n_traj: 64
+    nu: {dist: loguniform, low: 2.0e-3, high: 5.0e-3, exclude: [2.8e-3, 3.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  val:
+    n_traj: 16
+    nu: {dist: loguniform, low: 2.0e-3, high: 5.0e-3, exclude: [2.8e-3, 3.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_id:
+    n_traj: 16
+    nu: {dist: loguniform, low: 2.0e-3, high: 5.0e-3, exclude: [2.8e-3, 3.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+    resolutions: [64, 128]
+  test_interp:
+    n_traj: 16
+    nu: {dist: loguniform, low: 2.8e-3, high: 3.4e-3}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_re_low:
+    n_traj: 16
+    nu: {dist: choice, values: [1.0e-2, 7.5e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_ic:
+    n_traj: 12
+    nu: {dist: loguniform, low: 2.0e-3, high: 5.0e-3}
+    ic: {type: mixed, kinds: [shear_layer, dipole, taylor_green_perturbed], energy: 0.5}
+    spinup: 0.0

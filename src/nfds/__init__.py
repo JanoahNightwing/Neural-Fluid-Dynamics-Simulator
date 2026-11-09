@@ -4,4 +4,4 @@ from nfds.grid import SpectralGrid
 from nfds.solver.spectral_numpy import SpectralVorticitySolver
 
 __all__ = ["SpectralGrid", "SpectralVorticitySolver"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

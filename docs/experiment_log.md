@@ -70,3 +70,42 @@ one batch, statistics over t ∈ [20, 40].
 **Conclusion.** In M2, simulate at 256² and tighten the acceptance threshold (provisionally 2e-5) after
 a 256² scan on the GPU. Use a spin-up of at least t = 10 before recording, and longer windows than
 t = 20 for statistics, since the energy fluctuates by ±15% over periods of about 10 time units.
+
+---
+
+## 2026-11-08 · E004 · Grid and time step for the forced dataset; first dataset run
+
+**Question.** Which simulation grid and time step does `forced_v1` need, and does the pipeline's
+quality control work in practice?
+
+**Measurements at 256² (Kolmogorov k_f = 4, drag 0.1, dt = 2.5e-3, float32, t ∈ [10, 25]).**
+
+| ν | Max resolution ratio | Max CFL |
+| --- | --- | --- |
+| 1.5e-3 | 5.0e-8 | 0.54 |
+| 1.0e-3 | 1.5e-7 | 0.52 |
+| 5.0e-4 | 8.6e-7 | 0.50 |
+
+Forced turbulence at these Re is much better resolved than the decaying case in E001 (which started
+from an energetic k_peak = 6 field). 256² resolves the whole planned range, including the high-Re test
+set, so no 512² simulations are needed (about 8× cheaper than planned). dt = 2.5e-3 keeps the CFL
+number near 0.5.
+
+**Dev dataset (`configs/datasets/forced_dev.yaml`, 128² → 64², 140 trajectories, 2-core CPU).**
+About 1 minute per batch of 16 trajectories (~10 minutes in total); 205 MB on disk. All random-IC
+splits pass the 2e-5 resolution threshold (max 1.4e-5). The quality check rejected 3 of 12 structured
+initial conditions, all "perturbed Taylor–Green". The cause was the initial condition itself: its
+random perturbation peaked at k = 8, which leaves a spectral tail near the 128² cutoff. Lowering the
+peak to k = 5 fixed it (12/12 accepted).
+
+**Other observations.**
+- Frame-to-frame increments have about half the standard deviation of the field itself (2.17 vs
+  4.15 at save_dt = 0.25). Each prediction step is a substantial update, not a small correction;
+  this matters for residual-prediction models in M3.
+- The shear-layer initial conditions roll up into Kelvin–Helmholtz vortices within the recorded
+  window, as expected.
+
+**Expected cost of `forced_v1`.** About 2.0e7 trajectory-steps at 256² in total. That would be
+about 18 hours at this CPU's ~300 trajectory-steps/s. On the RTX 4090 it should be far less;
+the GPU benchmark will give the real figure. About 4.3 GB on disk (train 1.6 GB; test_id 2.2 GB
+because it also stores 128² and 256² fields).

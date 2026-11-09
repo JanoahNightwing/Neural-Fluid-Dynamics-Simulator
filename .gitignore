@@ -9,11 +9,11 @@ build/
 dist/
 
 # Data and run artefacts are regenerated, never committed
-data/
-outputs/
-runs/
+/data/
+/outputs/
+/runs/
 wandb/
 *.h5
 *.zarr
 *.npz
-checkpoints/
+/checkpoints/

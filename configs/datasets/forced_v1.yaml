@@ -1,0 +1,70 @@
+# Main dataset: Kolmogorov-forced 2D turbulence, simulated at 256², stored at 64².
+# Intended for a GPU (about 1-2 hours on an RTX 4090 is the rough expectation; see the
+# generator's progress output and the benchmark for real numbers).
+#
+#   python -m nfds.data.generate configs/datasets/forced_v1.yaml --out data/forced_v1
+#
+# Resolution and time step were chosen from measurements (docs/experiment_log.md, E004):
+# at 256² and dt = 2.5e-3, nu = 5e-4 has resolution ratio ~1e-6 and CFL ~0.5.
+
+name: forced_v1
+version: 1
+description: >
+  Kolmogorov-forced 2D incompressible turbulence on a periodic box for training
+  and evaluating neural surrogates. Training viscosities are log-uniform in
+  [1e-3, 5e-3] (Re 200-1000) with the band [1.8e-3, 2.4e-3] held out for an
+  interpolation test. Separate test sets cover lower and higher Reynolds numbers,
+  structured initial conditions and resolution transfer.
+base_seed: 20261108
+drag: 0.1
+forcing:
+  type: kolmogorov
+  wavenumber: 4
+  amplitude: 1.0
+
+simulation:
+  sim_n: 256
+  train_n: 64
+  dt: 2.5e-3
+  save_dt: 0.25
+  n_frames: 100          # 25 time units per trajectory after spin-up
+  spinup: 10.0
+  scheme: ifrk4
+  dtype: float32
+  batch_size: 64
+  max_cfl: 1.0
+
+quality:
+  max_resolution_ratio: 2.0e-5
+
+splits:
+  train:
+    n_traj: 1000
+    nu: {dist: loguniform, low: 1.0e-3, high: 5.0e-3, exclude: [1.8e-3, 2.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  val:
+    n_traj: 100
+    nu: {dist: loguniform, low: 1.0e-3, high: 5.0e-3, exclude: [1.8e-3, 2.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_id:               # same distribution, new seeds; extra grids for resolution transfer
+    n_traj: 64
+    nu: {dist: loguniform, low: 1.0e-3, high: 5.0e-3, exclude: [1.8e-3, 2.4e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+    resolutions: [64, 128, 256]
+  test_interp:           # viscosities from the held-out band
+    n_traj: 64
+    nu: {dist: loguniform, low: 1.8e-3, high: 2.4e-3}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_re_low:           # smoother than training (Re 100-133)
+    n_traj: 64
+    nu: {dist: choice, values: [1.0e-2, 7.5e-3]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_re_high:          # more turbulent than training (Re 2000-3333)
+    n_traj: 64
+    nu: {dist: choice, values: [5.0e-4, 3.0e-4]}
+    ic: {type: random, k_peak: [3, 6], energy: 0.5}
+  test_ic:               # structured initial conditions, recorded from t = 0
+    n_traj: 60
+    nu: {dist: loguniform, low: 1.0e-3, high: 5.0e-3}
+    ic: {type: mixed, kinds: [shear_layer, dipole, taylor_green_perturbed], energy: 0.5}
+    spinup: 0.0
