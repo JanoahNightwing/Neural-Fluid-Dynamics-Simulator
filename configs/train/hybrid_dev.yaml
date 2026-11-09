@@ -1,0 +1,16 @@
+# Hybrid solver-in-the-loop on the dev dataset: the 64² solver plus a learned CNN correction.
+# The corrector matches cnn_dev_small (E005), so the comparison isolates the effect of putting
+# the solver in the loop. Physics and normalisation are filled in from the dataset.
+#   python -m nfds.training.train configs/train/hybrid_dev.yaml
+name: hybrid_dev
+data: data/forced_dev
+model:
+  name: hybrid
+  corrector: cnn
+  corrector_kwargs: {width: 32, depth: 4}
+  solver_substeps: 25        # dt = 0.01 at 64²: CFL ~0.55 on this data
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 12, batch_size: 32, warmup_epochs: 1}
+val: {horizon: 20}
+seed: 0

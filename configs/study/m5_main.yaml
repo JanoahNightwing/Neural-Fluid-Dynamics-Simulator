@@ -16,6 +16,7 @@ models:                       # base training configs (architecture, optimiser, 
   cnn: configs/train/cnn_v1.yaml
   unet: configs/train/unet_v1.yaml
   fno: configs/train/fno_v1.yaml
+  hybrid: configs/train/hybrid_v1.yaml
 
 overrides: []                 # applied to every run, e.g. ["optim.epochs=30"]
 model_overrides: {}
@@ -28,6 +29,12 @@ experiments:
       noise: {type: noise, noise_std: 0.05}
       unroll4: {type: unroll, unroll: 4}
       pushforward4: {type: pushforward, unroll: 4}
+    seeds: [0, 1, 2]
+  hybrid:                     # solver-in-the-loop: does physics + a correction beat both?
+    models: [hybrid]
+    regimes:
+      onestep: {type: onestep}
+      unroll4: {type: unroll, unroll: 4}
     seeds: [0, 1, 2]
   scaling:                    # test error vs number of training trajectories
     models: [unet, fno]
@@ -53,7 +60,7 @@ evaluation:
 
 speed:                        # accuracy-vs-cost Pareto front
   split: test_id
-  runs: "regimes-*-s0"
+  runs: "*-nall-s0"
   solver_resolutions: [32, 48, 64, 96, 128, 256]
   horizon: 10
   batch: 16

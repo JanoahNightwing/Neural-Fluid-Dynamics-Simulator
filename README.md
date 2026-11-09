@@ -103,6 +103,15 @@ The client is prebuilt into `src/nfds/app/static/`, so Node is only needed to ch
 (`cd frontend && npm install && npm run dev`). `scripts/e2e_app.py` drives the running app in
 headless Chrome and fails on blank canvases, stalled time or console errors.
 
+## Hybrid solver-in-the-loop model
+
+`model.name: hybrid` (`configs/train/hybrid_*.yaml`) wraps the differentiable 64² solver with a
+learned correction and trains end to end through the solver. Untrained, it *is* the coarse solver.
+On the dev data it is the most accurate 64² model by a wide margin. With 4-step unrolled
+training, its mean 40-step error is 40% below the coarse solver's and its one-step error is below
+the solver's dealiasing floor. At equal compute it lands on the solver's accuracy-vs-cost curve
+rather than below it (E009, `figures/pareto_dev_hybrid.png`).
+
 ## Studies (milestone M5)
 
 A study is one YAML plan (`configs/study/`) describing every training run and evaluation:
@@ -113,7 +122,8 @@ python -m nfds.study.run configs/study/m5_main.yaml          # run or resume
 python -m nfds.study.aggregate configs/study/m5_main.yaml    # REPORT.md, tables, figures
 ```
 
-`m5_main` covers 50 runs: three models × four training regimes × three seeds, data scaling
+`m5_main` covers 56 runs: three models × four training regimes × three seeds, the hybrid model
+(two regimes × three seeds), data scaling
 (50 to 1,000 trajectories) and few-shot adaptation to unseen high Reynolds numbers. Every run is
 evaluated on in-distribution, interpolation, low-/high-Re, structured-IC, 2×/4× resolution and
 long-horizon test sets. Finished work is detected on disk, so the study can be stopped and resumed;
@@ -137,7 +147,7 @@ Pareto front against the solver at several grid resolutions
 | Initial conditions | `src/nfds/initial_conditions.py` | Taylor–Green, Gaussian random field, double shear layer, vortex dipole |
 | Forcing | `src/nfds/forcing.py` | Kolmogorov forcing with its laminar solution |
 | Dataset pipeline | `src/nfds/data/` | YAML configs, deterministic per-trajectory seeding, spectral downsampling, quality control, HDF5 storage, windowed PyTorch `Dataset` |
-| Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), Fourier Neural Operator written from scratch (resolution-invariant spectral convolutions, periodic positional encoding, optional per-block channel MLP), `neuraloperator` reference adapter |
+| Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), Fourier Neural Operator written from scratch (resolution-invariant spectral convolutions, periodic positional encoding, optional per-block channel MLP), hybrid solver-in-the-loop model (differentiable coarse solver + learned correction, trained through the solver), `neuraloperator` reference adapter |
 | Training | `src/nfds/training/` | YAML configs with CLI overrides, four training regimes, cosine schedule, bf16 autocast, checkpoints, JSONL logs |
 | Evaluation | `src/nfds/evaluation/` | Steppers (model, persistence, coarse solver), autoregressive rollout, accuracy/physics/long-run metrics, evaluate, compare and speed/Pareto CLIs |
 | Interactive app | `src/nfds/app/`, `frontend/` | FastAPI + WebSocket server with lockstep solver/predictor sessions; React + TypeScript + WebGL client; end-to-end browser test |
@@ -199,4 +209,4 @@ docs/            experiment log
 - [x] **M4** Fourier Neural Operator, checked against `neuraloperator`, zero-shot resolution transfer (dev scale)
 - [ ] **M5** Stability and generalisation study: tooling done and dry-run on dev data; full run on GPU pending
 - [x] **M6** Interactive frontend (FastAPI + React/WebGL), with a bundled demo model
-- [ ] **M7** Report and stretch goal
+- [ ] **M7** Report and stretch goal: hybrid solver-in-the-loop model done (dev scale); report pending full results

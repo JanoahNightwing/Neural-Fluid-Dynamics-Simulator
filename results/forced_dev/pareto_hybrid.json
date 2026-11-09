@@ -1,0 +1,98 @@
+{
+ "split": "test_id",
+ "horizon": 10,
+ "horizon_time": 2.5,
+ "batch": 16,
+ "device": "cpu",
+ "n_trajectories": 16,
+ "train_resolution": 64,
+ "compile": false,
+ "bf16": false,
+ "points": [
+  {
+   "name": "solver 48\u00b2",
+   "kind": "solver",
+   "resolution": 48,
+   "ms_per_step": 2.732973775005121,
+   "ms_per_time_unit": 10.931895100020483,
+   "rel_l2_at_horizon": 0.26630270074867746,
+   "rel_l2_mean": 0.21146957287489815
+  },
+  {
+   "name": "solver 64\u00b2",
+   "kind": "solver",
+   "resolution": 64,
+   "ms_per_step": 3.6086518374986554,
+   "ms_per_time_unit": 14.434607349994621,
+   "rel_l2_at_horizon": 0.12593588158083918,
+   "rel_l2_mean": 0.10637774992148086
+  },
+  {
+   "name": "solver 80\u00b2",
+   "kind": "solver",
+   "resolution": 80,
+   "ms_per_step": 6.869322300008207,
+   "ms_per_time_unit": 27.47728920003283,
+   "rel_l2_at_horizon": 0.06414582023222,
+   "rel_l2_mean": 0.058156331465376174
+  },
+  {
+   "name": "solver 96\u00b2",
+   "kind": "solver",
+   "resolution": 96,
+   "ms_per_step": 10.321673912494589,
+   "ms_per_time_unit": 41.286695649978356,
+   "rel_l2_at_horizon": 0.031203555144750147,
+   "rel_l2_mean": 0.029079617945970172
+  },
+  {
+   "name": "solver 128\u00b2",
+   "kind": "solver",
+   "resolution": 128,
+   "ms_per_step": 24.693251937492278,
+   "ms_per_time_unit": 98.77300774996911,
+   "rel_l2_at_horizon": 6.940552456567404e-05,
+   "rel_l2_mean": 3.0477915974057795e-05
+  },
+  {
+   "name": "hybrid_dev_unroll4",
+   "kind": "model",
+   "checkpoint": "runs/hybrid_dev_unroll4/best.pt",
+   "resolution": 64,
+   "ms_per_step": 8.480740050003988,
+   "ms_per_time_unit": 33.92296020001595,
+   "rel_l2_at_horizon": 0.05290104206034581,
+   "rel_l2_mean": 0.04509746214445394
+  },
+  {
+   "name": "hybrid_dev_onestep",
+   "kind": "model",
+   "checkpoint": "runs/hybrid_dev_onestep/best.pt",
+   "resolution": 64,
+   "ms_per_step": 8.133241524990353,
+   "ms_per_time_unit": 32.53296609996141,
+   "rel_l2_at_horizon": 0.060655238134864446,
+   "rel_l2_mean": 0.04526516823707255
+  },
+  {
+   "name": "unet_dev_small",
+   "kind": "model",
+   "checkpoint": "runs/unet_dev_small/best.pt",
+   "resolution": 64,
+   "ms_per_step": 5.425641375006762,
+   "ms_per_time_unit": 21.70256550002705,
+   "rel_l2_at_horizon": 0.5527299955273888,
+   "rel_l2_mean": 0.29427186393661187
+  },
+  {
+   "name": "fno_mlp_dev_small",
+   "kind": "model",
+   "checkpoint": "runs/fno_mlp_dev_small/best.pt",
+   "resolution": 64,
+   "ms_per_step": 3.812279462499646,
+   "ms_per_time_unit": 15.249117849998584,
+   "rel_l2_at_horizon": 0.6494345302359545,
+   "rel_l2_mean": 0.3624466455822287
+  }
+ ]
+}

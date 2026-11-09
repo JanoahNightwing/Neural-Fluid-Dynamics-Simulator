@@ -82,6 +82,7 @@ def entry_from_checkpoint(path: Path) -> Entry:
                        if not k.endswith("_metadata") and torch.is_tensor(v))
     regime = tc.get("regime", {})
     names = {"cnn": "Residual CNN", "unet": "U-Net", "fno": "Fourier neural operator",
+             "hybrid": "Hybrid solver + network",
              "neuralop_fno": "FNO (neuraloperator)"}
     desc = (f"{names.get(model_type, model_type)}, {n_params / 1e6:.2f}M parameters, "
             f"{regime.get('type', 'onestep')} training, epoch {ckpt.get('epoch', '?')}")

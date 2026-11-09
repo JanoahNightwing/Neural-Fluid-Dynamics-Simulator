@@ -2,9 +2,10 @@
 
 from nfds.models.cnn import ResidualCNN
 from nfds.models.fno import FNO
+from nfds.models.hybrid import HybridSolver
 from nfds.models.unet import UNet
 
-MODELS = {"cnn": ResidualCNN, "unet": UNet, "fno": FNO}
+MODELS = {"cnn": ResidualCNN, "unet": UNet, "fno": FNO, "hybrid": HybridSolver}
 
 
 def build_model(name: str, n_in: int = 1, **kwargs):
@@ -21,4 +22,5 @@ def count_parameters(model) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-__all__ = ["FNO", "MODELS", "ResidualCNN", "UNet", "build_model", "count_parameters"]
+__all__ = ["FNO", "MODELS", "HybridSolver", "ResidualCNN", "UNet", "build_model",
+           "count_parameters"]

@@ -269,3 +269,50 @@ number to the top of the slider, switch to the coarse-solver baseline, resize to
 
 **Performance (2-core CPU).** 6–11 frames per second with a 128² reference and a 64² U-Net; the
 reference solver dominates. Each frame is about 16 KB of float16 data.
+
+---
+
+## 2026-11-09 · E009 · Hybrid solver-in-the-loop model (dev scale, CPU)
+
+**Question.** Does putting the reference solver inside the model (coarse 64² solver step plus a
+learned CNN correction, trained end to end through the differentiable solver) beat both the pure
+networks and the coarse solver? And does it beat the solver at equal cost?
+
+**Setup.** `configs/train/hybrid_dev.yaml`: 25 solver substeps per save interval (dt = 0.01,
+CFL about 0.55) and a CNN corrector identical to `cnn_dev_small` (75k parameters), so the
+comparison isolates the effect of the solver. The corrector's output layer starts at zero, so the
+untrained hybrid is exactly the coarse solver (unit-tested). One-step training for 12 epochs
+(19 min), and 4-step unrolled training for 6 epochs (40 min). Evaluated on `test_id` (16
+trajectories, 40 steps), timings on an idle CPU.
+
+| Model | 1-step rel. L2 | Mean rel. L2 (40 steps) | High-corr. time | Small-scale log-spectrum error | ms/step/traj |
+| --- | --- | --- | --- | --- | --- |
+| coarse solver 64² | 0.077 | 0.404 | 7.50 (12% censored) | 0.05 | 4.1 |
+| CNN alone (E005) | 0.453 | 1.107 | 0.28 | 3.96 | 3.8 |
+| U-Net (E005) | 0.084 | 0.922 | 2.80 | 0.06 | 5.7 |
+| **hybrid, one-step** | **0.032** | 0.309 | 8.31 (25% censored) | 0.01 | 8.6 |
+| **hybrid, unroll 4** | 0.037 | **0.242** | **≥ 8.86** (38% censored) | 0.01 | 8.9 |
+
+**Findings.**
+1. **The solver in the loop transforms the same small CNN.** Alone it is barely better than
+   persistence; wrapped around the solver it beats the coarse solver on every accuracy metric.
+   Its one-step error (0.032) is below the coarse solver's dealiasing floor (0.055, E005): the
+   correction restores the fine scales a 2/3-dealiased 64² solver cannot represent.
+2. **Unrolled training trades one-step for rollout accuracy**, as the M5 hypothesis predicts:
+   one-step error 0.032 → 0.037, mean 40-step error 0.309 → 0.242, and more trajectories
+   that never decorrelate within the horizon.
+3. **At equal cost, the hybrid is on the solver's Pareto curve, not below it**
+   (`figures/pareto_dev_hybrid.png`). At t = 2.5: the solver at 80² gives 0.064 for 27.5 ms per
+   time unit and at 96² gives 0.031 for 41.3 ms; the unrolled hybrid gives 0.053 for 33.9 ms,
+   about what the solver would achieve at that cost (≈0.049, interpolated). The pure networks
+   are far above the curve. So on this CPU the hybrid is the best *64²* model, but not a better
+   use of compute than a finer grid.
+
+**Why, and what to try on the GPU.** The corrector costs more than the solver step it corrects
+(~4.6 ms vs ~3.6 ms per step here). The levers are (a) a cheaper corrector, (b) fewer solver
+substeps (the CFL number allows larger steps), and (c), the approach of Kochkov et al., running
+the hybrid on a *coarser* grid (32² or 48²) and asking the correction to recover 64²-level
+accuracy, where the solver alone is cheap but poor. On a GPU the relative costs of convolutions
+and FFTs also change. The `hybrid` experiment in `configs/study/m5_main.yaml` (3 seeds, one-step
+and unrolled) measures the first two at full scale. The third needs datasets stored on coarser
+grids and is the natural next experiment.

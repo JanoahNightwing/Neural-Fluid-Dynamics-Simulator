@@ -48,6 +48,14 @@ METRICS = [
 ]
 
 
+# Experiments whose runs appear together in the main table, regime effects and figures.
+MAIN_EXPERIMENTS = ("regimes", "hybrid")
+
+
+def _exps(experiment: str) -> tuple[str, ...]:
+    return MAIN_EXPERIMENTS if experiment == "regimes" else (experiment,)
+
+
 # ------------------------------------------------------------------ statistics
 
 
@@ -129,7 +137,7 @@ def main_table(recs: list[dict], experiment: str = "regimes") -> tuple[str, list
     labels = {r["label"] for r in recs}
     cols = [m for m in METRICS if m[1] in labels]
     rows_md, rows_csv = [], []
-    keys = sorted(group([r for r in recs if r["experiment"] == experiment]))
+    keys = sorted(group([r for r in recs if r["experiment"] in _exps(experiment)]))
     baselines = sorted({r["model"] for r in recs if r["kind"] == "baselines"})
     for kind, entries in (("baselines", [(b, "-") for b in baselines]), ("runs", keys)):
         for model, regime in entries:
@@ -140,7 +148,7 @@ def main_table(recs: list[dict], experiment: str = "regimes") -> tuple[str, list
                     rs = [r for r in recs if r["kind"] == "baselines" and r["model"] == model
                           and r["label"] == label]
                 else:
-                    rs = [r for r in recs if r["experiment"] == experiment
+                    rs = [r for r in recs if r["experiment"] in _exps(experiment)
                           and r["model"] == model and r["regime"] == regime
                           and r["label"] == label]
                 seeds |= {r["seed"] for r in rs}
@@ -169,7 +177,7 @@ def main_table(recs: list[dict], experiment: str = "regimes") -> tuple[str, list
 def regime_effects(recs: list[dict], experiment: str = "regimes",
                    reference: str = "onestep", label: str = "test_id",
                    key: str = "high_corr_time") -> str:
-    g = group([r for r in recs if r["experiment"] == experiment and r["label"] == label])
+    g = group([r for r in recs if r["experiment"] in _exps(experiment) and r["label"] == label])
     lines = [f"| Model | Regime | Δ {key} vs {reference} (paired, 95% CI) | Significant |",
              "| --- | --- | --- | --- |"]
     for model in sorted({m for m, _ in g}):
@@ -194,7 +202,7 @@ def regime_effects(recs: list[dict], experiment: str = "regimes",
 def best_regime(recs: list[dict], model: str, experiment: str = "regimes",
                 label: str = "test_id") -> str | None:
     """Regime with the longest mean high-correlation time on the primary test set."""
-    g = group([r for r in recs if r["experiment"] == experiment and r["label"] == label
+    g = group([r for r in recs if r["experiment"] in _exps(experiment) and r["label"] == label
                and r["model"] == model])
     scores = {reg: np.mean(seed_values(rs, "high_corr_time_mean")) for (_, reg), rs in g.items()
               if seed_values(rs, "high_corr_time_mean")}
@@ -203,7 +211,7 @@ def best_regime(recs: list[dict], model: str, experiment: str = "regimes",
 
 def fig_regime_rollouts(recs: list[dict], out: Path, experiment: str = "regimes",
                         label: str = "test_id") -> bool:
-    g = group([r for r in recs if r["experiment"] == experiment and r["label"] == label])
+    g = group([r for r in recs if r["experiment"] in _exps(experiment) and r["label"] == label])
     models = sorted({m for m, _ in g})
     if not models:
         return False
@@ -246,7 +254,7 @@ def training_nu_range(plan: StudyPlan) -> dict | None:
 def fig_reynolds(recs: list[dict], plan: StudyPlan, out: Path,
                  experiment: str = "regimes", primary: str = "test_id") -> bool:
     splits = ["test_re_low", "test_id", "test_interp", "test_re_high"]
-    models = sorted({r["model"] for r in recs if r["experiment"] == experiment})
+    models = sorted({r["model"] for r in recs if r["experiment"] in _exps(experiment)})
     if not models:
         return False
     fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
@@ -257,7 +265,7 @@ def fig_reynolds(recs: list[dict], plan: StudyPlan, out: Path,
         for split in splits:
             rs = [r for r in recs if r["label"] == split and r["model"] == model
                   and r["kind"] == kind and (kind == "baselines" or (
-                      r["experiment"] == experiment and r["regime"] == regime))]
+                      r["experiment"] in _exps(experiment) and r["regime"] == regime))]
             pt = per_traj_seed_mean(rs, "high_corr_time")
             if pt is None:
                 continue
@@ -296,7 +304,7 @@ def fig_reynolds(recs: list[dict], plan: StudyPlan, out: Path,
 
 def fig_scaling(recs: list[dict], out: Path, experiment: str = "scaling",
                 label: str = "test_id") -> bool:
-    rs = [r for r in recs if r["experiment"] == experiment and r["label"] == label]
+    rs = [r for r in recs if r["experiment"] in _exps(experiment) and r["label"] == label]
     if not rs:
         return False
     by = defaultdict(lambda: defaultdict(list))

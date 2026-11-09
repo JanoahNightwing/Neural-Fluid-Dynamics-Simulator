@@ -69,7 +69,7 @@ fall, and the validation rollout error should be well below 1.
 python -m nfds.study.run configs\study\m5_main.yaml
 ```
 
-This trains 50 runs and evaluates every run and both baselines on every test set. It is safe
+This trains 56 runs and evaluates every run and both baselines on every test set. It is safe
 to stop (Ctrl+C, reboot) and run the same command again: finished work is skipped. If a run
 fails, it is recorded in `results\m5_main\failures.json` and the study moves on.
 

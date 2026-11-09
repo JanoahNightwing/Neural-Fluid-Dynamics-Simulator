@@ -143,6 +143,13 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
         model = init_model.to(device)
     else:
         model_cfg = dict(cfg.model)
+        if model_cfg["name"] == "hybrid":
+            # the hybrid's solver needs the dataset's physics and the normalisation in physical
+            # units; fill them in here so they are stored in the checkpoint's model_cfg
+            from nfds.models.hybrid import hybrid_physics_kwargs
+
+            model_cfg.update(hybrid_physics_kwargs(cfg.data, cfg.train_split, stats,
+                                                   nu_norm.log_mean, nu_norm.log_std))
         model = build_model(model_cfg["name"], n_in=cfg.n_in,
                             **{k: v for k, v in model_cfg.items() if k != "name"}).to(device)
     n_params = count_parameters(model)
