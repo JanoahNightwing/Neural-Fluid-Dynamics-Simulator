@@ -8,5 +8,5 @@ regime: {type: onestep}
 optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 50, batch_size: 64, warmup_epochs: 1}
 val: {horizon: 40}
 amp: true
-num_workers: 4
+num_workers: 0   # data is already in memory; workers would only copy it (slow on Windows)
 seed: 0
