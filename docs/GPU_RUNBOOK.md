@@ -97,6 +97,16 @@ git push
 
 Git for Windows will open a browser to sign in to GitHub the first time.
 
+## 7. Try the trained models in the app
+
+```powershell
+pip install -e ".[app]"
+python -m nfds.app --models runs\m5_main --device cuda --ref-n 256
+```
+
+Open http://127.0.0.1:8000. With the GPU, a 256² reference keeps up in real time, so the
+comparison is against the same grid the data was simulated on.
+
 ## Troubleshooting
 
 | Symptom | Fix |

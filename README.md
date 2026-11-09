@@ -4,7 +4,7 @@ A verified 2D incompressible Navier–Stokes solver, a reproducible turbulence d
 surrogates (CNN → U-Net → Fourier Neural Operator → hybrid) evaluated on accuracy, physical
 consistency, long-rollout stability, Reynolds-number generalisation and speed.
 
-**Status: milestones M0–M4 complete; M5 tooling complete and dry-run, with the full study
+**Status: milestones M0–M4 and M6 complete; M5 tooling complete and dry-run, with the full study
 ready to run on a GPU ([docs/GPU_RUNBOOK.md](docs/GPU_RUNBOOK.md)).** Verified solvers, a
 reproducible dataset pipeline, a shared training/evaluation stack, four surrogate families
 (residual CNN, conditioned U-Net, a from-scratch Fourier Neural Operator, and the
@@ -83,6 +83,26 @@ python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
   energy and enstrophy ratios, energy spectra with per-band log errors, failure (NaN or energy
   > 10× truth), and inference time.
 
+## Interactive app (milestone M6)
+
+![The app: reference solver, network prediction and their difference, with live agreement, energy and spectrum charts](figures/app_demo.png)
+
+```bash
+pip install -e ".[app]"
+python -m nfds.app                      # trained runs in runs/ plus the bundled demo model
+python -m nfds.app --models runs/m5_main --device cuda --ref-n 256
+```
+
+Then open http://127.0.0.1:8000. A FastAPI server steps a fine-grid reference solver and the
+chosen predictor in lockstep and streams both fields over a WebSocket (float16, ~16 KB per frame);
+the React client renders them with WebGL and plots agreement, energy and spectra live. You can
+pick the starting flow, paint vortices into both simulations at once, change the Reynolds number
+(the slider shows the band the network was trained on and warns when it extrapolates), turn the
+forcing off, switch between networks and the baselines, and restart the network from the solver.
+The client is prebuilt into `src/nfds/app/static/`, so Node is only needed to change it
+(`cd frontend && npm install && npm run dev`). `scripts/e2e_app.py` drives the running app in
+headless Chrome and fails on blank canvases, stalled time or console errors.
+
 ## Studies (milestone M5)
 
 A study is one YAML plan (`configs/study/`) describing every training run and evaluation:
@@ -120,6 +140,7 @@ Pareto front against the solver at several grid resolutions
 | Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), Fourier Neural Operator written from scratch (resolution-invariant spectral convolutions, periodic positional encoding, optional per-block channel MLP), `neuraloperator` reference adapter |
 | Training | `src/nfds/training/` | YAML configs with CLI overrides, four training regimes, cosine schedule, bf16 autocast, checkpoints, JSONL logs |
 | Evaluation | `src/nfds/evaluation/` | Steppers (model, persistence, coarse solver), autoregressive rollout, accuracy/physics/long-run metrics, evaluate, compare and speed/Pareto CLIs |
+| Interactive app | `src/nfds/app/`, `frontend/` | FastAPI + WebSocket server with lockstep solver/predictor sessions; React + TypeScript + WebGL client; end-to-end browser test |
 | Studies | `src/nfds/study/` | YAML study plans, resumable runner with failure log, aggregation with seed statistics and bootstrap CIs, report generation |
 
 ### Equations
@@ -161,6 +182,8 @@ ripples at a ratio of ~6e-5, so the acceptance threshold for the dataset will li
 src/nfds/        package: grid, solver, diagnostics, initial conditions, forcing
 configs/         dataset and training configs
 results/         evaluation results (JSON) and comparison tables
+frontend/        React + TypeScript client (built into src/nfds/app/static)
+demo/            small demo checkpoint so the app works after cloning
 tests/           verification suite (runs in CI)
 scripts/         figure and demo scripts
 figures/         committed verification figures
@@ -175,5 +198,5 @@ docs/            experiment log
 - [x] **M3** Baselines, CNN, U-Net, shared training and evaluation (dev-scale results; full runs on GPU pending)
 - [x] **M4** Fourier Neural Operator, checked against `neuraloperator`, zero-shot resolution transfer (dev scale)
 - [ ] **M5** Stability and generalisation study: tooling done and dry-run on dev data; full run on GPU pending
-- [ ] **M6** Interactive frontend
+- [x] **M6** Interactive frontend (FastAPI + React/WebGL), with a bundled demo model
 - [ ] **M7** Report and stretch goal

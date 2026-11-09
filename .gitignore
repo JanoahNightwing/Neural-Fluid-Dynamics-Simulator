@@ -21,3 +21,6 @@ wandb/
 # Dry-run study: keep the summary report and figures, not the raw (meaningless) numbers
 /results/m5_dev/runs/
 /results/m5_dev/baselines/
+
+# frontend
+node_modules/

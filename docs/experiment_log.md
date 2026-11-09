@@ -245,3 +245,27 @@ all six figures (`results/m5_dev/summary/REPORT.md`).
 failure modes clearly: the U-Net piles energy into the smallest scales and 44% of its 60-time-unit
 rollouts blow up, while the FNO and CNN decay towards a near-zero-energy state. The real study
 will measure how training regimes change this.
+
+---
+
+## 2026-11-09 · E008 · Interactive app: what end-to-end testing caught
+
+**Setup.** FastAPI server (128² reference solver, CPU) with three dev models; the built client
+driven by headless Chrome (`scripts/e2e_app.py`): load, play, paint a vortex, push the Reynolds
+number to the top of the slider, switch to the coarse-solver baseline, resize to a phone width.
+
+**Problems found and fixed.**
+1. Every settings change or brush stroke sends a frame at the *same* simulation time. The client
+   treated "time did not increase" as "a new flow started" and wiped the chart history after each
+   interaction. Now only time going backwards resets; a same-time frame replaces the last point.
+2. At Re = 10,000 the reference solver's own field showed grid-scale ripples: a 128² grid cannot
+   resolve that flow (the same limit measured in E001). The app was presenting an unreliable
+   "ground truth". The slider now stops at Re = 5,000 (where the 128² reference stays resolved in
+   testing), and the server reports the reference's resolution ratio every frame; above 1e-4 the
+   reference panel warns that its fine detail is unreliable (relevant with `--ref-n 64`).
+3. Smaller fixes: spectrum axis range and tick density, a favicon request that logged a 404, and
+   a colour clash (the low-correlation readout used the ochre reserved for "outside the training
+   range").
+
+**Performance (2-core CPU).** 6–11 frames per second with a 128² reference and a 64² U-Net; the
+reference solver dominates. Each frame is about 16 KB of float16 data.
