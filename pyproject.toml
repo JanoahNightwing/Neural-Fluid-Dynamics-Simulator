@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nfds"
-version = "0.1.0"
+version = "0.2.0"
 description = "Neural Fluid Dynamics Simulator: verified 2D Navier-Stokes solvers and neural surrogates"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,8 +16,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.4"]
+torch = ["torch>=2.2"]
 # Added in later milestones:
-# torch = ["torch>=2.2"]          # M1: batched GPU solver
 # data  = ["h5py", "pandas", "pyarrow", "hydra-core"]  # M2: dataset pipeline
 
 [tool.setuptools.packages.find]
