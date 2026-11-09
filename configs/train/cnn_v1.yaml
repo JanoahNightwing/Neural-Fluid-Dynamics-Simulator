@@ -1,0 +1,12 @@
+# Residual CNN on the full GPU dataset.
+#   python -m nfds.training.train configs/train/cnn_v1.yaml
+name: cnn_v1
+data: data/forced_v1
+model: {name: cnn, width: 96, depth: 10}
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 50, batch_size: 64, warmup_epochs: 1}
+val: {horizon: 40}
+amp: true
+num_workers: 4
+seed: 0

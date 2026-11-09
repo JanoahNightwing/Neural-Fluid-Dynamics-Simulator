@@ -9,7 +9,7 @@ build/
 dist/
 
 # Data and run artefacts are regenerated, never committed
-/data/
+/data
 /outputs/
 /runs/
 wandb/

@@ -4,8 +4,9 @@ A verified 2D incompressible Navier–Stokes solver, a reproducible turbulence d
 surrogates (CNN → U-Net → Fourier Neural Operator → hybrid) evaluated on accuracy, physical
 consistency, long-rollout stability, Reynolds-number generalisation and speed.
 
-**Status: Milestone M2 complete.** Verified NumPy and batched PyTorch solvers, plus a reproducible
-dataset pipeline with quality control, trajectory-level splits and a datasheet; 49 tests.
+**Status: Milestone M3 complete.** Verified solvers, a reproducible dataset pipeline, and a shared
+training/evaluation stack with a residual CNN, a viscosity-conditioned U-Net and two baselines;
+79 tests.
 
 ![verification](figures/verification.png)
 
@@ -53,6 +54,30 @@ from nfds.data.dataset import TrajectoryWindowDataset
 ds = TrajectoryWindowDataset("data/forced_dev", "train", n_in=1, n_out=4)  # normalised windows
 ```
 
+## Training and evaluation
+
+```bash
+python -m nfds.training.train configs/train/unet_dev.yaml            # or cnn_dev.yaml
+python -m nfds.training.train configs/train/unet_dev.yaml optim.epochs=5 name=quick   # overrides
+python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
+    --checkpoint runs/unet_dev/best.pt --out results/forced_dev
+python -m nfds.evaluation.evaluate --data data/forced_dev --split test_id \
+    --baseline coarse_solver --out results/forced_dev
+python -m nfds.evaluation.compare results/forced_dev --split test_id --out figures/compare.png
+```
+
+- **Models** predict the next frame as a residual on the last input frame, with zero-initialised
+  output layers, so an untrained model is exactly the persistence baseline. Periodic (circular)
+  padding everywhere; viscosity enters as a constant channel (CNN) or through FiLM (U-Net).
+- **Training regimes** (`regime.type`): `onestep`, `noise` (input noise), `unroll` (backpropagate
+  through K steps) and `pushforward` (K − 1 steps without gradients). The best checkpoint is chosen
+  by validation *rollout* error, not one-step loss.
+- **Baselines**: persistence, and the coarse solver (the reference solver run directly on the 64²
+  grid at the same resolution as the networks).
+- **Metrics**: relative L2 and correlation vs rollout time, high-correlation time (ρ > 0.8),
+  energy and enstrophy ratios, energy spectra with per-band log errors, failure (NaN or energy
+  > 10× truth), and inference time.
+
 ## What is implemented
 
 | Component | File | Notes |
@@ -64,6 +89,9 @@ ds = TrajectoryWindowDataset("data/forced_dev", "train", n_in=1, n_out=4)  # nor
 | Initial conditions | `src/nfds/initial_conditions.py` | Taylor–Green, Gaussian random field, double shear layer, vortex dipole |
 | Forcing | `src/nfds/forcing.py` | Kolmogorov forcing with its laminar solution |
 | Dataset pipeline | `src/nfds/data/` | YAML configs, deterministic per-trajectory seeding, spectral downsampling, quality control, HDF5 storage, windowed PyTorch `Dataset` |
+| Models | `src/nfds/models/` | Residual CNN, FiLM-conditioned U-Net (PDEArena-style), model registry |
+| Training | `src/nfds/training/` | YAML configs with CLI overrides, four training regimes, cosine schedule, bf16 autocast, checkpoints, JSONL logs |
+| Evaluation | `src/nfds/evaluation/` | Steppers (model, persistence, coarse solver), autoregressive rollout, metrics, evaluate and compare CLIs |
 
 ### Equations
 
@@ -102,7 +130,8 @@ ripples at a ratio of ~6e-5, so the acceptance threshold for the dataset will li
 
 ```
 src/nfds/        package: grid, solver, diagnostics, initial conditions, forcing
-configs/         dataset configs
+configs/         dataset and training configs
+results/         evaluation results (JSON) and comparison tables
 tests/           verification suite (runs in CI)
 scripts/         figure and demo scripts
 figures/         committed verification figures
@@ -114,7 +143,7 @@ docs/            experiment log
 - [x] **M0** Foundations: repo, CI, NumPy reference solver, verification suite
 - [x] **M1** Batched PyTorch (GPU) solver, tested against the NumPy reference (GPU benchmark pending)
 - [x] **M2** Dataset pipeline (generator CLI, HDF5, splits, datasheet); full GPU run pending
-- [ ] **M3** Baselines, CNN, U-Net
+- [x] **M3** Baselines, CNN, U-Net, shared training and evaluation (dev-scale results; full runs on GPU pending)
 - [ ] **M4** Fourier Neural Operator
 - [ ] **M5** Stability and generalisation study
 - [ ] **M6** Interactive frontend

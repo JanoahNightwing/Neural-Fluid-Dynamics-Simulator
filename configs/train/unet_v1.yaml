@@ -1,0 +1,12 @@
+# Viscosity-conditioned U-Net on the full GPU dataset.
+#   python -m nfds.training.train configs/train/unet_v1.yaml
+name: unet_v1
+data: data/forced_v1
+model: {name: unet, widths: [64, 128, 256], blocks_per_level: 2, emb_dim: 128}
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 3.0e-4, weight_decay: 1.0e-4, epochs: 50, batch_size: 64, warmup_epochs: 1}
+val: {horizon: 40}
+amp: true
+num_workers: 4
+seed: 0

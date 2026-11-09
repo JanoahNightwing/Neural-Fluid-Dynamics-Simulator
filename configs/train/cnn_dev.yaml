@@ -1,0 +1,10 @@
+# Residual CNN on the laptop-scale dev dataset (one-step training).
+#   python -m nfds.training.train configs/train/cnn_dev.yaml
+name: cnn_dev
+data: data/forced_dev
+model: {name: cnn, width: 48, depth: 6}
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 30, batch_size: 32, warmup_epochs: 1}
+val: {horizon: 20}
+seed: 0

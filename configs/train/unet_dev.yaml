@@ -1,0 +1,10 @@
+# Viscosity-conditioned U-Net on the dev dataset (one-step training).
+#   python -m nfds.training.train configs/train/unet_dev.yaml
+name: unet_dev
+data: data/forced_dev
+model: {name: unet, widths: [32, 64, 128], blocks_per_level: 2, emb_dim: 64}
+n_in: 1
+regime: {type: onestep}
+optim: {lr: 5.0e-4, weight_decay: 1.0e-4, epochs: 30, batch_size: 32, warmup_epochs: 1}
+val: {horizon: 20}
+seed: 0

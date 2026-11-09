@@ -109,3 +109,45 @@ peak to k = 5 fixed it (12/12 accepted).
 about 18 hours at this CPU's ~300 trajectory-steps/s. On the RTX 4090 it should be far less;
 the GPU benchmark will give the real figure. About 4.3 GB on disk (train 1.6 GB; test_id 2.2 GB
 because it also stores 128² and 256² fields).
+
+---
+
+## 2026-11-09 · E005 · First learned surrogates vs baselines (dev scale, CPU)
+
+**Question.** Do the training and evaluation stack work end to end, and where do a small CNN and
+U-Net stand against persistence and the coarse solver?
+
+**Setup.** `forced_dev` (64 training trajectories, 64², save interval 0.25). Small models trained
+for 12 epochs on a 2-core CPU, one-step regime, checkpoint chosen by 20-step validation rollout
+error: CNN (width 32, depth 4, 75k parameters, ~14 min) and U-Net (widths 16/32/64, 449k
+parameters, ~16 min). Evaluated on `test_id` (16 trajectories) over 40 steps (10 time units).
+All models and baselines in float32.
+Figure: `figures/compare_dev_test_id.png`; table: `figures/compare_dev_test_id.md`.
+
+| Model | 1-step rel. L2 | Mean rel. L2 (40 steps) | High-corr. time (ρ > 0.8) | Small-scale log-spectrum error | ms/step/traj (CPU) |
+| --- | --- | --- | --- | --- | --- |
+| persistence | 0.506 | 1.28 | 0.23 | 0.02 | 0.2 |
+| coarse solver (64²) | **0.077** | **0.40** | **7.50** (12% censored) | 0.05 | **3.7** |
+| CNN | 0.453 | 1.11 | 0.28 | 3.96 | 3.8 |
+| U-Net | 0.084 | 0.92 | 2.80 | 0.06 | 5.8 |
+
+**Findings.**
+1. **Rollout and one-step error disagree.** The CNN's one-step validation error fell from
+   0.46 to 0.33 over training, while its 20-step rollout error got *worse* after epoch 1, so
+   rollout-based model selection kept the epoch-1 checkpoint. This is the problem the training-regime
+   study (M5) targets.
+2. **The CNN behaves like a learned diffusion.** Its spectrum collapses at small scales and energy
+   accumulates in the largest scale (1.9× the true energy by t = 10). Its receptive field (21 px)
+   cannot represent the non-local Poisson coupling.
+3. **The U-Net is accurate per step but compounds errors.** Its one-step error is close to the
+   coarse solver's and its spectrum is excellent, but it decorrelates 2.7× sooner.
+4. **The coarse solver is a strong, fair baseline.** 0.055 of its 0.077 one-step error is the 2/3
+   dealiasing floor (it cannot represent stored modes with |k| ≥ 64/3), so beating it on the first
+   step partly reflects resolution, not dynamics. That must be stated whenever a model beats it.
+5. **Timing has to be fair.** In float64 the solver took 42 ms/step; in float32 it takes 3.7 ms,
+   faster than the U-Net on this CPU. Comparing against the float64 number would have produced a
+   false 7× speed-up claim.
+
+**Conclusion.** The pipeline works. At dev scale on CPU, neither network beats the coarse solver on
+accuracy or speed. Next: full-size models on `forced_v1` on the GPU (`configs/train/*_v1.yaml`),
+then the FNO (M4) and the training-regime ablation (M5).

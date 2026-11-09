@@ -23,7 +23,7 @@ data = ["torch>=2.2", "h5py>=3.8", "pyyaml>=6"]
 where = ["src"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 markers = ["slow: longer-running verification tests"]
 
