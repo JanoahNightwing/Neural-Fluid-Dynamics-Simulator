@@ -1,6 +1,7 @@
 # Main dataset: Kolmogorov-forced 2D turbulence, simulated at 256², stored at 64².
-# Intended for a GPU (about 1-2 hours on an RTX 4090 is the rough expectation; see the
-# generator's progress output and the benchmark for real numbers).
+# Intended for a GPU. Measured on an RTX 4060 (8 GB): about 50 minutes for all splits.
+# The batch size of 16 comes from figures/bench_gpu.json: at 256² float32 the 4060 does
+# ~7700 trajectory-steps/s at batch 16 but only ~4200 at batch 64 (memory-bound).
 #
 #   python -m nfds.data.generate configs/datasets/forced_v1.yaml --out data/forced_v1
 #
@@ -31,7 +32,7 @@ simulation:
   spinup: 10.0
   scheme: ifrk4
   dtype: float32
-  batch_size: 64
+  batch_size: 16         # fastest on an 8 GB card; results do not depend on it
   max_cfl: 1.0
 
 quality:
