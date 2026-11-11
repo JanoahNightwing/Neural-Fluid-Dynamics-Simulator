@@ -89,7 +89,7 @@ def load_records(plan: StudyPlan) -> list[dict[str, Any]]:
             continue
         for owner_dir in sorted(p for p in root.iterdir() if p.is_dir()):
             for f in sorted(owner_dir.glob("*.json")):
-                res = json.loads(f.read_text())
+                res = json.loads(f.read_text(encoding="utf-8"))
                 info = parse_run_name(owner_dir.name) if kind == "runs" else {
                     "experiment": "baseline", "model": owner_dir.name, "regime": "-",
                     "seed": 0}
@@ -247,7 +247,7 @@ def training_nu_range(plan: StudyPlan) -> dict | None:
     path = Path(plan.data) / "config.yaml"
     if not path.exists():
         return None
-    cfg = yaml.safe_load(path.read_text())
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
     return cfg.get("splits", {}).get("train", {}).get("nu")
 
 
@@ -420,16 +420,16 @@ def aggregate(plan: StudyPlan) -> Path:
     figs = out / "figures"
     figs.mkdir(parents=True, exist_ok=True)
     table_md, rows = main_table(recs)
-    (out / "main_table.md").write_text(table_md)
+    (out / "main_table.md").write_text(table_md, encoding="utf-8")
     if rows:
-        with open(out / "main_table.csv", "w", newline="") as f:
+        with open(out / "main_table.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()) + [
                 k for r in rows for k in r if k not in rows[0]])
             w.writeheader()
             w.writerows(rows)
     primary = plan.raw.get("evaluation", {}).get("splits", ["test_id"])[0]
     effects = regime_effects(recs, label=primary)
-    (out / "regime_effects.md").write_text(effects)
+    (out / "regime_effects.md").write_text(effects, encoding="utf-8")
 
     made = {
         "regime_rollouts.png": fig_regime_rollouts(recs, figs / "regime_rollouts.png",
@@ -440,9 +440,9 @@ def aggregate(plan: StudyPlan) -> Path:
         "fewshot.png": fig_fewshot(recs, figs / "fewshot.png"),
     }
     pareto = plan.results_dir / "figures" / "pareto.png"
-    status = json.loads((plan.results_dir / "status.json").read_text()) \
+    status = json.loads((plan.results_dir / "status.json").read_text(encoding="utf-8")) \
         if (plan.results_dir / "status.json").exists() else {}
-    failures = json.loads((plan.results_dir / "failures.json").read_text()) \
+    failures = json.loads((plan.results_dir / "failures.json").read_text(encoding="utf-8")) \
         if (plan.results_dir / "failures.json").exists() else []
     n_runs = len(plan.runs)
     n_done = sum((plan.runs_dir / r.name / "summary.json").exists() for r in plan.runs)
@@ -465,7 +465,7 @@ def aggregate(plan: StudyPlan) -> Path:
     if status:
         lines += ["## Status", "", f"Last run: {status.get('updated', '?')}, "
                   f"counts: {status.get('counts')}", ""]
-    (out / "REPORT.md").write_text("\n".join(lines))
+    (out / "REPORT.md").write_text("\n".join(lines), encoding="utf-8")
     return out / "REPORT.md"
 
 

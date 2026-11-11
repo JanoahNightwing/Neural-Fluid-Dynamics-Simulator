@@ -168,7 +168,8 @@ def main(argv: list[str] | None = None) -> None:
                  args.horizon, args.batch, args.max_trajectories, args.device, args.compile,
                  args.bf16)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(M.jsonable(res), indent=1, allow_nan=False))
+    Path(args.out).write_text(json.dumps(M.jsonable(res), indent=1, allow_nan=False),
+                              encoding="utf-8")
     if args.figure:
         plot_pareto(res, args.figure)
     print(f"wrote {args.out}")

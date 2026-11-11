@@ -43,7 +43,8 @@ def test_every_regime_trains_and_writes_outputs(tiny_dataset, tmp_path, regime):
     run = tmp_path / regime["type"]
     for f in ("config.yaml", "metrics.jsonl", "best.pt", "last.pt", "summary.json"):
         assert (run / f).exists()
-    lines = [json.loads(x) for x in (run / "metrics.jsonl").read_text().splitlines()]
+    log = (run / "metrics.jsonl").read_text(encoding="utf-8")
+    lines = [json.loads(x) for x in log.splitlines()]
     assert len(lines) == 2 and "val_rollout" in lines[-1]
     assert summary["best_val_rollout"] < 10
 
@@ -63,8 +64,8 @@ def test_training_reduces_loss(tiny_dataset, tmp_path):
     cfg = make_cfg(tiny_dataset, tmp_path, name="learn",
                    optim={"epochs": 15, "batch_size": 4, "lr": 3e-3, "warmup_epochs": 0.5})
     train(cfg, verbose=False)
-    lines = [json.loads(x) for x in (tmp_path / "learn" / "metrics.jsonl").read_text()
-             .splitlines()]
+    log = (tmp_path / "learn" / "metrics.jsonl").read_text(encoding="utf-8")
+    lines = [json.loads(x) for x in log.splitlines()]
     assert lines[-1]["train_loss"] < 0.7 * lines[0]["train_loss"]
 
 
@@ -83,7 +84,7 @@ def test_config_validation_and_overrides(tmp_path):
     with pytest.raises(ValueError):
         config_from_dict({"name": "x", "data": "d", "regime": {"type": "noise"}})
     p = tmp_path / "c.yaml"
-    p.write_text("name: a\ndata: d\nmodel: {name: cnn, width: 8}\n")
+    p.write_text("name: a\ndata: d\nmodel: {name: cnn, width: 8}\n", encoding="utf-8")
     cfg = load_config(p, ["model.width=32", "optim.lr=0.01", "name=b"])
     assert cfg.model["width"] == 32 and cfg.optim.lr == 0.01 and cfg.name == "b"
 
@@ -118,5 +119,5 @@ def test_fine_tuning_keeps_architecture_and_normalisation(tiny_dataset, tmp_path
 def test_max_batches_per_epoch_from_config(tiny_dataset, tmp_path):
     cfg = make_cfg(tiny_dataset, tmp_path, name="cap", max_batches_per_epoch=1)
     train(cfg, verbose=False)
-    lines = (tmp_path / "cap" / "metrics.jsonl").read_text().splitlines()
+    lines = (tmp_path / "cap" / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2

@@ -78,7 +78,7 @@ def _check_token(kind: str, value: str) -> None:
 
 
 def load_plan(path: str | Path, extra_overrides: list[str] | None = None) -> StudyPlan:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return build_plan(raw, extra_overrides)
 
@@ -143,7 +143,8 @@ def build_plan(raw: dict[str, Any], extra_overrides: list[str] | None = None) ->
             raise ValueError("few-shot: shots + val_trajectories must leave trajectories to test")
         eval_range = [k_max + v, n_split]
         fs_eval = EvalSpec(fs["split"], horizon, trajectories=eval_range,
-                           label=f"{fs['split']}[{eval_range[0]}:{eval_range[1]}]")
+                           # no ':' in the label: it becomes a file name, and Windows forbids ':'
+                           label=f"{fs['split']}[{eval_range[0]}-{eval_range[1]}]")
         fewshot_evals.append(fs_eval)
         for model in fs["models"]:
             seed = src.get("seed", 0)

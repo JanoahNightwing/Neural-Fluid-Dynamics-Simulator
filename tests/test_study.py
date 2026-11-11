@@ -31,7 +31,8 @@ def model_configs(tmp_path):
                         ("fno", "{name: fno, width: 4, modes: 4, n_layers: 1, proj_width: 8}")):
         p = tmp_path / f"{name}.yaml"
         p.write_text(f"name: {name}\ndata: x\nmodel: {model}\n"
-                     "optim: {epochs: 1, batch_size: 4}\nval: {horizon: 2}\ndevice: cpu\n")
+                     "optim: {epochs: 1, batch_size: 4}\nval: {horizon: 2}\ndevice: cpu\n",
+                     encoding="utf-8")
         paths[name] = str(p)
     return paths
 
@@ -65,6 +66,8 @@ def test_plan_expansion_and_names(tiny_data, tmp_path, model_configs):
     assert len(names) == 2 * 2 * 2 + 2 + 2
     assert "regimes-fno-pushforward2-nall-s1" in names
     assert "scaling-fno-onestep-n4-s0" in names and "fewshot-fno-pushforward2-k2-s0" in names
+    labels = [e.label for r in plan.runs for e in r.evals] + [e.label for e in plan.baseline_evals]
+    assert not any(set(lab) & set('<>:"/\\|?*') for lab in labels)  # valid Windows file names
     for n in names:
         info = parse_run_name(n)
         assert info["model"] in ("cnn", "fno")
@@ -72,7 +75,7 @@ def test_plan_expansion_and_names(tiny_data, tmp_path, model_configs):
     assert fs.init_from == "regimes-fno-pushforward2-nall-s0"
     assert fs.evals[0].trajectories == [3, 6]  # after max shots (2) + val (1)
     base = plan.run("regimes-fno-pushforward2-nall-s0")
-    assert "test_re[3:6]" in [e.label for e in base.evals]  # zero-shot reference
+    assert "test_re[3-6]" in [e.label for e in base.evals]  # zero-shot reference
     assert [e.label for e in plan.run("scaling-fno-onestep-n2-s0").evals] == ["val"]
 
 
@@ -95,23 +98,23 @@ def test_execute_resume_and_aggregate(tiny_data, tmp_path, model_configs):
     run_eval = res / "runs" / "regimes-cnn-onestep-nall-s0"
     assert {p.name for p in run_eval.iterdir()} == {"val.json", "test_ic.json",
                                                     "test_ic@32.json"}  # test_long missing
-    assert (res / "runs" / "fewshot-fno-pushforward2-k2-s0" / "test_re[3:6].json").exists()
-    assert (res / "runs" / "regimes-fno-pushforward2-nall-s0" / "test_re[3:6].json").exists()
+    assert (res / "runs" / "fewshot-fno-pushforward2-k2-s0" / "test_re[3-6].json").exists()
+    assert (res / "runs" / "regimes-fno-pushforward2-nall-s0" / "test_re[3-6].json").exists()
     assert (res / "baselines" / "coarse_solver" / "test_ic@32.json").exists()
     assert (res / "pareto.json").exists()
-    fs = json.loads((res / "runs" / "fewshot-fno-pushforward2-k1-s0" / "test_re[3:6].json")
-                    .read_text())
+    fs = json.loads((res / "runs" / "fewshot-fno-pushforward2-k1-s0" / "test_re[3-6].json")
+                    .read_text(encoding="utf-8"))
     assert fs["n_trajectories"] == 3
 
     again = execute(plan, device="cpu", verbose=False)  # resume: nothing left to do
     assert again["trained"] == 0 and again["evaluated"] == 0
 
     report = aggregate(plan)
-    text = report.read_text()
+    text = report.read_text(encoding="utf-8")
     assert "## Main results" in text and "regimes" not in text.split("## Main")[0]
-    table = (res / "summary" / "main_table.md").read_text()
+    table = (res / "summary" / "main_table.md").read_text(encoding="utf-8")
     assert "| cnn | pushforward2 | 2 |" in table and "| coarse_solver | - |" in table
-    effects = (res / "summary" / "regime_effects.md").read_text()
+    effects = (res / "summary" / "regime_effects.md").read_text(encoding="utf-8")
     assert "pushforward2" in effects
     for fig in ("regime_rollouts.png", "fewshot.png", "scaling.png"):
         assert (res / "summary" / "figures" / fig).exists()
@@ -126,7 +129,7 @@ def test_failed_run_is_logged_and_study_continues(tiny_data, tmp_path, model_con
     plan = build_plan(d)
     counts = execute(plan, device="cpu", verbose=False)
     assert counts["failed"] == 1 and counts["trained"] == 1
-    failures = json.loads((plan.results_dir / "failures.json").read_text())
+    failures = json.loads((plan.results_dir / "failures.json").read_text(encoding="utf-8"))
     assert failures[0]["what"] == "train regimes-cnn-onestep-nall-s0"
 
 

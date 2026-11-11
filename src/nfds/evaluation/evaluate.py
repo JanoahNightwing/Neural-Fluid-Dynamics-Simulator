@@ -174,7 +174,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", default="results")
     args = p.parse_args(argv)
 
-    train_res = json.loads((Path(args.data) / "stats.json").read_text())["resolution"]
+    stats_path = Path(args.data) / "stats.json"
+    train_res = json.loads(stats_path.read_text(encoding="utf-8"))["resolution"]
     n = args.resolution or train_res
     if args.checkpoint:
         from nfds.training.checkpoint import load_stepper
@@ -191,7 +192,7 @@ def main(argv: list[str] | None = None) -> None:
     out.mkdir(parents=True, exist_ok=True)
     label = args.split if n == train_res else f"{args.split}@{n}"
     path = out / f"{name}__{label}.json"
-    path.write_text(json.dumps(M.jsonable(res), indent=1, allow_nan=False))
+    path.write_text(json.dumps(M.jsonable(res), indent=1, allow_nan=False), encoding="utf-8")
     print(f"{name} on {label}: first-step rel. L2 {res['rel_l2_first_step']:.4f}, "
           f"mean over {res['horizon']} steps {res['rel_l2_mean_over_horizon']}, "
           f"high-corr time {res['high_corr_time_mean']:.2f} "

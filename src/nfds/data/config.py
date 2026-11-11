@@ -195,5 +195,5 @@ def config_from_dict(d: dict[str, Any]) -> DatasetConfig:
 
 
 def load_config(path: str | Path) -> DatasetConfig:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return config_from_dict(yaml.safe_load(f))

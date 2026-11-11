@@ -6,10 +6,17 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.12"]
+        include:
+          - os: windows-latest   # the main GPU machine runs Windows (cp1252 default encoding)
+            python-version: "3.12"
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

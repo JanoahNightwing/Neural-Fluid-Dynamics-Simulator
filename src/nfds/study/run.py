@@ -65,11 +65,11 @@ def train_config(plan: StudyPlan, run: RunSpec):
 
 def log_failure(plan: StudyPlan, what: str, err: BaseException) -> None:
     path = plan.results_dir / "failures.json"
-    failures = json.loads(path.read_text()) if path.exists() else []
+    failures = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
     failures.append({"what": what, "error": f"{type(err).__name__}: {err}",
                      "traceback": traceback.format_exc(limit=5),
                      "time": datetime.now(timezone.utc).isoformat()})
-    path.write_text(json.dumps(failures, indent=1))
+    path.write_text(json.dumps(failures, indent=1), encoding="utf-8")
 
 
 def evaluate_one(plan: StudyPlan, stepper, owner: str, spec: EvalSpec, baseline: bool,
@@ -83,7 +83,7 @@ def evaluate_one(plan: StudyPlan, stepper, owner: str, spec: EvalSpec, baseline:
                            resolution=spec.resolution, trajectories=spec.trajectories)
     res.update({"name": owner, "label": spec.label, "train_resolution": None})
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(jsonable(res), indent=1, allow_nan=False))
+    path.write_text(json.dumps(jsonable(res), indent=1, allow_nan=False), encoding="utf-8")
     return "new"
 
 
@@ -155,7 +155,7 @@ def execute(plan: StudyPlan, only: str | None = None, device: str = "auto",
                     continue
                 try:
                     n = spec.resolution or json.loads(
-                        (Path(plan.data) / "stats.json").read_text())["resolution"]
+                        (Path(plan.data) / "stats.json").read_text(encoding="utf-8"))["resolution"]
                     stepper = make_baseline(name, plan.data, spec.split, n, dev)
                     evaluate_one(plan, stepper, name, spec, True, dev)
                     counts["evaluated"] += 1
@@ -171,7 +171,7 @@ def execute(plan: StudyPlan, only: str | None = None, device: str = "auto",
     counts["minutes"] = round((time.perf_counter() - t_start) / 60, 1)
     (plan.results_dir / "status.json").write_text(json.dumps(
         {"counts": counts, "runs": status_table(plan),
-         "updated": datetime.now(timezone.utc).isoformat()}, indent=1))
+         "updated": datetime.now(timezone.utc).isoformat()}, indent=1), encoding="utf-8")
     return counts
 
 
@@ -189,7 +189,7 @@ def run_speed(plan: StudyPlan, device: str, verbose: bool = True) -> None:
                      max_trajectories=sp.get("max_trajectories", 32), device=device,
                      compile=sp.get("compile", False), bf16=sp.get("bf16", False))
         (plan.results_dir / "pareto.json").write_text(
-            json.dumps(jsonable(res), indent=1, allow_nan=False))
+            json.dumps(jsonable(res), indent=1, allow_nan=False), encoding="utf-8")
         plot_pareto(res, plan.results_dir / "figures" / "pareto.png")
         if verbose:
             print("speed benchmark: done")

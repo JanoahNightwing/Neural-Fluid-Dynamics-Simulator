@@ -18,7 +18,8 @@ BASELINE_STYLE = {"persistence": dict(color="0.6", ls=":"),
 
 
 def load_results(root: str | Path, split: str) -> list[dict]:
-    res = [json.loads(p.read_text()) for p in sorted(Path(root).glob(f"*__{split}.json"))]
+    paths = sorted(Path(root).glob(f"*__{split}.json"))
+    res = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
     # baselines first, then models in name order
     return sorted(res, key=lambda r: (r["name"] not in BASELINE_STYLE, r["name"]))
 
@@ -89,7 +90,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(f"no results for split {args.split!r} in {args.results}")
     table = markdown_table(results)
     print(table)
-    Path(args.out).with_suffix(".md").write_text(table + "\n")
+    Path(args.out).with_suffix(".md").write_text(table + "\n", encoding="utf-8")
     plot(results, args.out, args.title or f"{args.split}: {results[0]['n_trajectories']} "
          f"trajectories, {results[0]['resolution']}²")
     print(f"wrote {args.out}")

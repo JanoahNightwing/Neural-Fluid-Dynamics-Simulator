@@ -111,7 +111,8 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
     seed_everything(cfg.seed)
     run_dir = cfg.run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg.to_dict(), sort_keys=False))
+    (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg.to_dict(), sort_keys=False),
+                                         encoding="utf-8")
 
     stats = load_stats(cfg.data)
     unroll = cfg.regime.unroll
@@ -169,7 +170,7 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
               f"(unroll {unroll}), device {device}", flush=True)
     best, history = math.inf, []
     log_path = run_dir / "metrics.jsonl"
-    log_path.write_text("")
+    log_path.write_text("", encoding="utf-8")
     t_start = time.perf_counter()
     for epoch in range(1, cfg.optim.epochs + 1):
         model.train()
@@ -198,7 +199,7 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
                 rec["best"] = True
             save_checkpoint(run_dir / "last.pt", *ckpt_args, optimizer=opt)
         history.append(rec)
-        with open(log_path, "a") as f:
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
         if verbose:
             val = (f", val 1-step {rec['val_onestep']:.4f}, val rollout {rec['val_rollout']:.4f}"
@@ -211,7 +212,7 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
                "train_windows": len(train_ds),
                "epochs": cfg.optim.epochs, "train_seconds": time.perf_counter() - t_start,
                "final": history[-1]}
-    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
+    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
 

@@ -109,7 +109,7 @@ def main() -> None:
     if args.out:
         meta = {"platform": platform.platform(), "processor": platform.processor(),
                 "numpy": np.__version__, **torch_info}
-        with open(args.out, "w") as f:
+        with open(args.out, "w", encoding="utf-8") as f:
             json.dump({"meta": meta, "rows": rows}, f, indent=2)
         print(f"wrote {args.out}")
 

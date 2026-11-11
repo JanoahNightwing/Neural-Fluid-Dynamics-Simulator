@@ -108,7 +108,7 @@ def config_from_dict(d: dict[str, Any]) -> TrainConfig:
 
 def load_config(path: str | Path, overrides: list[str] | None = None) -> TrainConfig:
     """Load YAML, applying ``key.sub=value`` overrides (values parsed as YAML)."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         d = yaml.safe_load(f)
     for item in overrides or []:
         key, _, value = item.partition("=")

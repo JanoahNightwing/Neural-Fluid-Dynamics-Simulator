@@ -31,13 +31,20 @@ nfds = ["app/static/*", "app/static/assets/*"]
 pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 markers = ["slow: longer-running verification tests"]
+# With PYTHONWARNDEFAULTENCODING=1 (set in CI), any text I/O in this project that relies on
+# the platform's default encoding fails the tests; third-party libraries are not affected.
+filterwarnings = ["error::EncodingWarning:nfds", "error::EncodingWarning:test_"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "NPY"]
+select = ["E", "F", "I", "B", "UP", "NPY", "PLW1514"]
+# PLW1514: text files must name their encoding. Windows defaults to cp1252, which cannot
+# write characters such as ν, so every open/read_text/write_text states encoding="utf-8".
+preview = true
+explicit-preview-rules = true
 
 [tool.ruff.lint.per-file-ignores]
 # The datasheet template contains Markdown table rows that cannot be wrapped.

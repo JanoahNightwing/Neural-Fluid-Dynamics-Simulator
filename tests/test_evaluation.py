@@ -104,8 +104,8 @@ def test_evaluate_cli_resolution_transfer_label(tiny_dataset, tmp_path):
           "--horizon", "2", "--out", str(tmp_path)])
     import json
 
-    hi = json.loads((tmp_path / "persistence__test_ic@32.json").read_text())
-    lo = json.loads((tmp_path / "persistence__test_ic.json").read_text())
+    hi = json.loads((tmp_path / "persistence__test_ic@32.json").read_text(encoding="utf-8"))
+    lo = json.loads((tmp_path / "persistence__test_ic.json").read_text(encoding="utf-8"))
     assert hi["resolution"] == 32 and lo["resolution"] == 16 and hi["train_resolution"] == 16
 
 

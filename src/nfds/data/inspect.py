@@ -20,9 +20,9 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", default=None)
     args = p.parse_args(argv)
     root = Path(args.root)
-    manifest = json.loads((root / "manifest.json").read_text())
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     splits = list(manifest["files"])
-    res = json.loads((root / "stats.json").read_text())["resolution"]
+    res = json.loads((root / "stats.json").read_text(encoding="utf-8"))["resolution"]
 
     fig = plt.figure(figsize=(3.0 * max(4, len(splits)), 9), constrained_layout=True)
     gs = fig.add_gridspec(3, max(4, len(splits)))

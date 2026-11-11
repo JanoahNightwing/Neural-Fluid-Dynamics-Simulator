@@ -99,7 +99,7 @@ def test_files_shapes_and_metadata(tiny_dataset):
 
 
 def test_manifest_hashes_match_files(tiny_dataset):
-    manifest = json.loads((tiny_dataset / "manifest.json").read_text())
+    manifest = json.loads((tiny_dataset / "manifest.json").read_text(encoding="utf-8"))
     for fname, entry in manifest["files"].items():
         assert entry["sha256"] == sha256(tiny_dataset / fname)
 
@@ -117,13 +117,13 @@ def test_regenerating_one_split_keeps_others_in_manifest(tmp_path):
     cfg = tiny_config()
     generate(cfg, tmp_path, splits=["train", "val"], verbose=False)
     generate(cfg, tmp_path, splits=["train"], verbose=False)
-    files = json.loads((tmp_path / "manifest.json").read_text())["files"]
+    files = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["files"]
     assert set(files) == {"train.h5", "val.h5"}
-    assert "| val |" in (tmp_path / "DATASHEET.md").read_text()
+    assert "| val |" in (tmp_path / "DATASHEET.md").read_text(encoding="utf-8")
 
 
 def test_stats_come_from_train_split_only(tiny_dataset):
-    stats = json.loads((tiny_dataset / "stats.json").read_text())
+    stats = json.loads((tiny_dataset / "stats.json").read_text(encoding="utf-8"))
     with h5py.File(tiny_dataset / "train.h5") as f:
         w = f["vorticity_16"][:].astype(np.float64)
     assert np.isclose(stats["vorticity_std"], w.std(), rtol=1e-10)
@@ -181,7 +181,7 @@ def test_per_split_frame_count_override(tmp_path):
     with h5py.File(tmp_path / "val.h5") as f, h5py.File(tmp_path / "train.h5") as g:
         assert f["vorticity_16"].shape[1] == 9 and len(f["times"]) == 9
         assert g["vorticity_16"].shape[1] == 6
-    assert "| 9 |" in (tmp_path / "DATASHEET.md").read_text()
+    assert "| 9 |" in (tmp_path / "DATASHEET.md").read_text(encoding="utf-8")
 
 
 def test_spectral_resample_up_and_down_exact_for_band_limited_fields():
@@ -203,11 +203,11 @@ def test_adding_a_split_keeps_existing_ones_in_manifest(tmp_path):
     cfg2.splits.append(copy.deepcopy(cfg2.split("val")))
     cfg2.splits[-1].name = "test_new"
     generate(cfg2, tmp_path, splits=["train", "test_new"], verbose=False)
-    files = json.loads((tmp_path / "manifest.json").read_text())["files"]
+    files = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["files"]
     assert set(files) == {"train.h5", "val.h5", "test_new.h5"}
     # changing a split's settings invalidates its old entry
     cfg3 = tiny_config()
     cfg3.split("val").n_traj = 3
     generate(cfg3, tmp_path, splits=["train"], verbose=False)
-    files = json.loads((tmp_path / "manifest.json").read_text())["files"]
+    files = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["files"]
     assert "val.h5" not in files

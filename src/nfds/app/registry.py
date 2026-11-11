@@ -65,7 +65,7 @@ def entry_from_checkpoint(path: Path) -> Entry:
         found = _physics_from_data(data_dir, tc.get("train_split", "train"))
         stats = data_dir / "stats.json"
         if stats.exists():
-            resolution = int(json.loads(stats.read_text())["resolution"])
+            resolution = int(json.loads(stats.read_text(encoding="utf-8"))["resolution"])
     if found:
         physics, nu_cfg = found
         source = "dataset"

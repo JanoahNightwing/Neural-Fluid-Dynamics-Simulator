@@ -36,7 +36,7 @@ class Normalizer:
 
 
 def load_stats(root: str | Path) -> dict:
-    return json.loads((Path(root) / "stats.json").read_text())
+    return json.loads((Path(root) / "stats.json").read_text(encoding="utf-8"))
 
 
 def load_split(root: str | Path, split: str, resolution: int | None = None,
