@@ -316,3 +316,27 @@ accuracy, where the solver alone is cheap but poor. On a GPU the relative costs 
 and FFTs also change. The `hybrid` experiment in `configs/study/m5_main.yaml` (3 seeds, one-step
 and unrolled) measures the first two at full scale. The third needs datasets stored on coarser
 grids and is the natural next experiment.
+
+## E010 — GPU solver benchmark (RTX 4060, 8 GB) and dataset batch size
+
+**Setup.** `python scripts/benchmark_solver.py --out figures/bench_gpu.json` on Windows 11,
+torch 2.15 + CUDA, idle machine. IF-RK4, ν = 1e-3, 20 timed steps after warm-up, median of repeats.
+Units: trajectory-steps per second (batch × steps / s); speed-up relative to NumPy at the same grid.
+
+| Grid | NumPy | torch CPU f32 b16 | CUDA f64 b1 | CUDA f64 b16 | CUDA f64 b64 | CUDA f32 b1 | CUDA f32 b16 | CUDA f32 b64 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 64² | 1,284 | 2,294 | 255 | 10,527 | 27,407 | 751 | 10,726 | 44,804 |
+| 128² | 465 | 3,273 | 761 | 5,432 | 5,361 | 715 | 10,991 | 31,763 |
+| 256² | 111 | 574 | 631 | 1,313 | 1,037 | 727 | 7,695 | 4,244 |
+
+**Findings.**
+1. **Single trajectories are launch-bound**: ~1.4 ms per step at every grid size, so the GPU only
+   pays off when batched. This also bounds the app's real-time reference solver (~700 steps/s).
+2. **float64 is 2–6× slower** than float32 on this consumer card at 128²–256². Generation stays in
+   float32, which matched float64 trajectories to < 1e-5 (M1 tests).
+3. **At 256² throughput peaks at batch 16** (7,695 vs 4,244 at batch 64): the 64-trajectory batch
+   no longer fits in cache-friendly working sets on an 8 GB card. `forced_v1` now generates with
+   `batch_size: 16`; batch size does not change the data (each trajectory is independent).
+
+**Estimate for `forced_v1`.** 4,000 spin-up + 9,900 recorded steps per trajectory; 1,000 train
+trajectories ≈ 13.9 M trajectory-steps ≈ 30 min, all splits ≈ 50 min, ~4 GB on disk.

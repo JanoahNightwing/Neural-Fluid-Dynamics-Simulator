@@ -5,7 +5,8 @@ surrogates (CNN → U-Net → Fourier Neural Operator → hybrid) evaluated on a
 consistency, long-rollout stability, Reynolds-number generalisation and speed.
 
 **Status: milestones M0–M4 and M6 complete; M5 tooling complete and dry-run, with the full study
-ready to run on a GPU ([docs/GPU_RUNBOOK.md](docs/GPU_RUNBOOK.md)).** Verified solvers, a
+ready to run on a GPU ([docs/GPU_RUNBOOK.md](docs/GPU_RUNBOOK.md)). GPU solver benchmark done
+(RTX 4060); full dataset generation in progress.** Verified solvers, a
 reproducible dataset pipeline, a shared training/evaluation stack, four surrogate families
 (residual CNN, conditioned U-Net, a from-scratch Fourier Neural Operator, and the
 `neuraloperator` FNO as a reference), two baselines, and resumable study orchestration.
@@ -21,6 +22,7 @@ pip install -e ".[dev,data]"
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 # ... or the default CUDA build on a machine with an NVIDIA GPU
 # pip install torch
+# Windows (PowerShell): python -m venv .venv; .venv\Scripts\Activate.ps1  (tested, see CI)
 pytest -q                                   # verification suite (~10 s)
 python scripts/verify.py                    # convergence + Taylor–Green figure
 python scripts/demo_decaying.py             # 256² decaying turbulence (~40 s on a laptop CPU)
@@ -178,6 +180,20 @@ and forcing use Heun (RK2) or classic RK4.
 | PyTorch gradients vs central finite differences | agree to 1e-6 |
 | float32 vs float64 trajectories | relative difference < 1e-5 |
 
+## Solver throughput (measured, `scripts/benchmark_solver.py`)
+
+Batched IF-RK4 steps per second, summed over trajectories (trajectory-steps/s). RTX 4060 (8 GB) vs the
+NumPy reference solver on CPU; full table in `docs/experiment_log.md` (E010).
+
+| Grid | NumPy, 1 traj | GPU float32, batch 16 | GPU float32, batch 64 | GPU float64, batch 16 |
+| --- | ---: | ---: | ---: | ---: |
+| 64² | 1,284 | 10,726 | **44,804** (35×) | 10,527 |
+| 128² | 465 | 10,991 | **31,763** (68×) | 5,432 |
+| 256² | 111 | **7,695** (69×) | 4,244 | 1,313 |
+
+Consumer GPUs have little float64 throughput, so data generation runs in float32 (verified to match
+float64 trajectories to < 1e-5). At 256² the 8 GB card is memory-bound above batch 16.
+
 ## Resolution guidance (measured, see `docs/experiment_log.md`)
 
 At 256², decaying turbulence with initial peak k = 6 is resolved for ν ≳ 1e-3 (energy near the
@@ -203,7 +219,7 @@ docs/            experiment log
 ## Roadmap
 
 - [x] **M0** Foundations: repo, CI, NumPy reference solver, verification suite
-- [x] **M1** Batched PyTorch (GPU) solver, tested against the NumPy reference (GPU benchmark pending)
+- [x] **M1** Batched PyTorch (GPU) solver, tested against the NumPy reference (GPU benchmark: up to 69× NumPy on an RTX 4060)
 - [x] **M2** Dataset pipeline (generator CLI, HDF5, splits, datasheet); full GPU run pending
 - [x] **M3** Baselines, CNN, U-Net, shared training and evaluation (dev-scale results; full runs on GPU pending)
 - [x] **M4** Fourier Neural Operator, checked against `neuraloperator`, zero-shot resolution transfer (dev scale)
