@@ -340,3 +340,11 @@ Units: trajectory-steps per second (batch × steps / s); speed-up relative to Nu
 
 **Estimate for `forced_v1`.** 4,000 spin-up + 9,900 recorded steps per trajectory; 1,000 train
 trajectories ≈ 13.9 M trajectory-steps ≈ 30 min, all splits ≈ 50 min, ~4 GB on disk.
+
+**Measured (generation run).** 2,138 s for train, 2,884 s (48 min) for all splits, matching the
+estimate. All 1,472 trajectories accepted. Worst resolution ratio per split: train 3.2e-7,
+test_re_high 2.9e-6 (ν = 3e-4, the hardest case, still 7× below the 2e-5 threshold), test_re_low
+1.1e-11. Worst CFL 0.93 in test_ic (structured ICs recorded from t = 0, no spin-up), 0.60–0.65
+elsewhere. The resolution ratio falls as a clean power law in ν across all splits
+(`figures/forced_v1_summary.png`). Note: stored at 64², the test_re_high fields carry filaments at
+the grid scale that the training data rarely has; this is part of what that split tests.

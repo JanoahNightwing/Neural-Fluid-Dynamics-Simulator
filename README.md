@@ -52,6 +52,12 @@ CFL number, and writes one HDF5 file per split plus `stats.json` (train-only nor
 | test_interp | 64 | ν inside the held-out band |
 | test_re_low / test_re_high | 64 / 64 | Re 100–133 / Re 2000–3333 |
 | test_ic | 60 | shear layers, vortex dipoles, perturbed Taylor–Green, recorded from t = 0 |
+| test_long | 16 | 400 frames (100 time units) for long-run statistics |
+
+`forced_v1` (generated on an RTX 4060 in 48 min, 1,472/1,472 trajectories accepted, worst
+resolution ratio 2.9e-6 against a 2e-5 threshold):
+
+![forced_v1 summary](figures/forced_v1_summary.png)
 
 ```python
 from nfds.data.dataset import TrajectoryWindowDataset
