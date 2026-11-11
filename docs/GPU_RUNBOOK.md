@@ -50,18 +50,19 @@ The generator prints progress with an estimate of the remaining time. Afterwards
 summary line per split: every split should show all (or nearly all) trajectories accepted.
 Open `data\forced_v1\summary.png` and `data\forced_v1\DATASHEET.md`.
 
-## 3. A quick check of the study (15-30 minutes)
+## 3. Time the training runs (~10 minutes)
 
-Run one seed of the one-step regime first, to see real timings before committing to the
-full study:
+Measure what each model and training regime costs on this GPU before committing to the full
+study:
 
 ```powershell
-python -m nfds.study.run configs\study\m5_main.yaml --only "regimes-*-onestep-*-s0"
-python -m nfds.study.run configs\study\m5_main.yaml --list
+python scripts\time_training.py
 ```
 
-Look at `runs\m5_main\regimes-unet-onestep-nall-s0\metrics.jsonl`: the training loss should
-fall, and the validation rollout error should be well below 1.
+It trains each model for a few dozen batches per regime and prints seconds per batch, peak GPU
+memory and the extrapolated hours per run (results in `figures\train_timing.json`). The study
+plan (`configs\study\m5_main.yaml`: epochs, seeds, batch sizes) is sized from this table so
+that the whole study fits overnight.
 
 ## 4. The full study (overnight)
 
