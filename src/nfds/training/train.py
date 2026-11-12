@@ -145,7 +145,8 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
           verbose: bool = True, resume: bool = False) -> dict:
     device = resolve_device(cfg.device)
     if device.type == "cuda":
-        torch.cuda.set_per_process_memory_fraction(cfg.gpu_memory_fraction, device)
+        index = device.index if device.index is not None else torch.cuda.current_device()
+        torch.cuda.set_per_process_memory_fraction(cfg.gpu_memory_fraction, index)
         torch.backends.cudnn.benchmark = True  # fixed input shapes: pick the fastest kernels
     seed_everything(cfg.seed)
     run_dir = cfg.run_dir
