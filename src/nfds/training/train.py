@@ -72,6 +72,27 @@ def compute_loss(model: torch.nn.Module, batch: dict, nu_norm: NuNormalizer, cfg
     return rel_l2_loss(model(window.detach(), nu_f)[:, 0], y[:, r.unroll - 1])
 
 
+def accumulate_gradients(model: torch.nn.Module, batch: dict, nu_norm: NuNormalizer,
+                         cfg: TrainConfig, device: torch.device, use_amp: bool) -> float:
+    """Backpropagate the batch loss, in micro-batches if configured; return the loss.
+
+    Each micro-batch loss is weighted by its share of the batch, so the accumulated gradient
+    equals the full-batch gradient.
+    """
+    n = batch["input"].shape[0]
+    mb = cfg.optim.micro_batch_size or n
+    total = 0.0
+    for s in range(0, n, mb):
+        chunk = {k: v[s : s + mb] for k, v in batch.items()}
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp):
+            loss = compute_loss(model, chunk, nu_norm, cfg, device) * (chunk["input"].shape[0] / n)
+        if not torch.isfinite(loss):
+            raise FloatingPointError("non-finite training loss")
+        loss.backward()
+        total += float(loss.detach())
+    return total
+
+
 def lr_lambda(cfg: TrainConfig, steps_per_epoch: int):
     total = cfg.optim.epochs * steps_per_epoch
     warm = max(1, int(cfg.optim.warmup_epochs * steps_per_epoch))
@@ -108,6 +129,9 @@ def validate(model: torch.nn.Module, val_loader: DataLoader, val_data: dict, sta
 def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
           verbose: bool = True) -> dict:
     device = resolve_device(cfg.device)
+    if device.type == "cuda":
+        torch.cuda.set_per_process_memory_fraction(cfg.gpu_memory_fraction, device)
+        torch.backends.cudnn.benchmark = True  # fixed input shapes: pick the fastest kernels
     seed_everything(cfg.seed)
     run_dir = cfg.run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -178,16 +202,15 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
         for i, batch in enumerate(train_loader):
             if i >= steps_per_epoch:
                 break
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=use_amp):
-                loss = compute_loss(model, batch, nu_norm, cfg, device)
-            if not torch.isfinite(loss):
-                raise FloatingPointError(f"non-finite training loss at epoch {epoch}, step {i}")
             opt.zero_grad(set_to_none=True)
-            loss.backward()
+            try:
+                loss = accumulate_gradients(model, batch, nu_norm, cfg, device, use_amp)
+            except FloatingPointError as e:
+                raise FloatingPointError(f"{e} at epoch {epoch}, step {i}") from None
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.optim.grad_clip)
             opt.step()
             sched.step()
-            losses.append(loss.item())
+            losses.append(loss)
         rec = {"epoch": epoch, "train_loss": float(np.mean(losses)),
                "lr": sched.get_last_lr()[0], "epoch_seconds": time.perf_counter() - t0}
         if epoch % cfg.val.every == 0 or epoch == cfg.optim.epochs:

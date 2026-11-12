@@ -348,3 +348,40 @@ test_re_high 2.9e-6 (ν = 3e-4, the hardest case, still 7× below the 2e-5 thres
 elsewhere. The resolution ratio falls as a clean power law in ν across all splits
 (`figures/forced_v1_summary.png`). Note: stored at 64², the test_re_high fields carry filaments at
 the grid scale that the training data rarely has; this is part of what that split tests.
+
+## E011 — Training cost on the RTX 4060, and the GPU memory spill
+
+**Setup.** `python scripts/time_training.py` with the v1 configs (batch 64, bf16 autocast) on the
+full `forced_v1` data: 40 timed batches per (model, regime) after a warm-up epoch.
+
+| model | regime | ms/batch | peak GB | min/epoch | h/run (50 epochs) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| cnn | onestep | 428 | 2.34 | 11.3 | 9.4 |
+| cnn | unroll4 | 11,308 | **8.96** | 287 | 239 |
+| cnn | pushforward4 | 733 | 2.34 | 18.6 | 15.5 |
+| unet | onestep | 468 | 3.86 | 12.3 | 10.2 |
+| unet | unroll4 | 14,927 | **14.41** | 373 | 311 |
+| unet | pushforward4 | 785 | 3.86 | 19.8 | 16.5 |
+| fno | onestep | 107 | 1.45 | 2.8 | 2.4 |
+| fno | unroll4 | 402 | 4.79 | 10.1 | 8.5 |
+| fno | pushforward4 | 218 | 1.46 | 5.5 | 4.6 |
+| hybrid | onestep | 249 | 1.27 | 6.6 | 5.5 |
+| hybrid | unroll4 | 1,108 | 6.45 | 27.9 | 23.3 |
+
+**Findings.**
+1. **CNN and U-Net unroll4 exceeded the 8.6 GB card and did not fail.** On Windows the NVIDIA
+   driver by default spills over-allocations into system RAM across PCIe ("CUDA sysmem
+   fallback"), so instead of an out-of-memory error training ran 26–32× slower than one-step
+   (expected ≈ 4×). FNO unroll4 fits and costs 3.8× its one-step time, as expected.
+2. **Fix.** Training now caps PyTorch's allocation at 95% of the card
+   (`gpu_memory_fraction`), so an oversize run fails fast instead of spilling, and supports
+   gradient accumulation (`optim.micro_batch_size`): the batch of 64 is processed in micro-batches
+   whose gradients are summed before the optimiser step. Because the loss is a per-sample mean
+   weighted by micro-batch share, the update is identical to the full batch (unit test: gradients
+   agree to 1e-9), so the regime ablation keeps one batch size. cuDNN autotuning is now on.
+3. **The convolutional models are compute-heavy at this size.** The v1 CNN (20 convolutions of
+   96 channels at 64²) is ≈ 13.6 GFLOP per sample forward, ≈ 2.6 TFLOP per training batch, so
+   428 ms is ≈ 6 TFLOP/s sustained. The FNO is 4× cheaper per step than either.
+4. **The plan as written does not fit this GPU.** Even with the spill fixed, 50 epochs × 56 runs
+   is several hundred GPU-hours; the study has to be resized (fewer steps per run and/or smaller
+   convolutional models), see the next entry.

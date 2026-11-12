@@ -121,3 +121,34 @@ def test_max_batches_per_epoch_from_config(tiny_dataset, tmp_path):
     train(cfg, verbose=False)
     lines = (tmp_path / "cap" / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
+
+
+@pytest.mark.parametrize("regime", [{"type": "onestep"}, {"type": "unroll", "unroll": 3}])
+def test_micro_batches_give_the_full_batch_gradient(tiny_dataset, tmp_path, regime):
+    from torch.utils.data import DataLoader
+
+    from nfds.data.dataset import TrajectoryWindowDataset
+    from nfds.models import build_model
+    from nfds.training.train import NuNormalizer, accumulate_gradients
+
+    unroll = regime.get("unroll", 1)
+    ds = TrajectoryWindowDataset(tiny_dataset, "train", n_in=1, n_out=unroll)
+    batch = next(iter(DataLoader(ds, batch_size=8)))
+    nu_norm = NuNormalizer.from_values(ds.meta["nu"])
+    grads, losses = [], []
+    for mb in (None, 2):
+        cfg = make_cfg(tiny_dataset, tmp_path, regime=regime,
+                       optim={"batch_size": 8, "micro_batch_size": mb})
+        torch.manual_seed(0)
+        model = build_model("cnn", n_in=1, width=8, depth=1).double()
+        torch.nn.init.normal_(model.proj.weight, std=0.1)  # zero-init would give zero grads
+        b = {k: (v.double() if v.is_floating_point() else v) for k, v in batch.items()}
+        losses.append(accumulate_gradients(model, b, nu_norm, cfg, torch.device("cpu"), False))
+        grads.append(torch.cat([p.grad.flatten() for p in model.parameters()]))
+    assert losses[0] == pytest.approx(losses[1], rel=1e-10)
+    torch.testing.assert_close(grads[0], grads[1], rtol=1e-9, atol=1e-12)
+
+
+def test_micro_batch_size_must_divide_batch_size(tiny_dataset, tmp_path):
+    with pytest.raises(ValueError, match="micro_batch_size"):
+        make_cfg(tiny_dataset, tmp_path, optim={"batch_size": 8, "micro_batch_size": 3})

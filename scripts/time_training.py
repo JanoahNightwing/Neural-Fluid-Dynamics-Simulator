@@ -7,7 +7,8 @@ For each (model, regime) this trains two short epochs of ``--batches`` batches w
 v1 configs (the second epoch is timed, so CUDA warm-up and autotuning are excluded) and runs
 validation twice. It reports seconds per batch, seconds per validation, peak GPU memory and the
 extrapolated time for one full epoch and for the configured number of epochs. A run that does
-not fit in GPU memory is retried with half the batch size. Results go to
+not fit in GPU memory is retried with gradient accumulation over smaller micro-batches (same
+batch size, same update), halving the micro-batch until it fits. Results go to
 figures/train_timing.json. Scratch runs are written to runs/_timing (safe to delete).
 """
 
@@ -33,11 +34,11 @@ REGIMES = {
 SKIP = {("hybrid", "pushforward4")}  # not part of the study plan
 
 
-def probe(model: str, regime: str, batches: int, batch_size: int | None, out_dir: str) -> dict:
+def probe(model: str, regime: str, batches: int, micro: int | None, out_dir: str) -> dict:
     overrides = [*REGIMES[regime], "optim.epochs=2", "optim.warmup_epochs=0",
                  f"out_dir={out_dir}", f"name={model}-{regime}"]
-    if batch_size is not None:
-        overrides.append(f"optim.batch_size={batch_size}")
+    if micro is not None:
+        overrides.append(f"optim.micro_batch_size={micro}")
     cfg = load_config(CONFIGS[model], overrides)
     full_epochs = load_config(CONFIGS[model]).optim.epochs
     if torch.cuda.is_available():
@@ -52,6 +53,7 @@ def probe(model: str, regime: str, batches: int, batch_size: int | None, out_dir
     epoch_min = (full_batches * s_batch + s_val) / 60
     return {
         "model": model, "regime": regime, "batch_size": cfg.optim.batch_size,
+        "micro_batch_size": cfg.optim.micro_batch_size or cfg.optim.batch_size,
         "parameters": summary["parameters"], "s_per_batch": s_batch, "s_per_val": s_val,
         "batches_per_epoch": full_batches,
         "peak_gb": torch.cuda.max_memory_allocated() / 1e9 if torch.cuda.is_available() else None,
@@ -75,31 +77,31 @@ def main() -> None:
         print("device: CPU (no CUDA) - timings will not be representative", file=sys.stderr)
 
     rows = []
-    header = (f"{'model':7s} {'regime':13s} {'batch':>5s} {'ms/batch':>9s} {'val s':>6s} "
-              f"{'peak GB':>8s} {'min/epoch':>10s} {'epochs':>6s} {'h/run':>6s}")
+    header = (f"{'model':7s} {'regime':13s} {'batch':>5s} {'micro':>5s} {'ms/batch':>9s} "
+              f"{'val s':>6s} {'peak GB':>8s} {'min/epoch':>10s} {'epochs':>6s} {'h/run':>6s}")
     print(header, flush=True)
     for model in args.models:
         for regime in args.regimes:
             if (model, regime) in SKIP:
                 continue
-            batch_size, row = None, None
+            micro, row = None, None
             while row is None:
                 try:
-                    row = probe(model, regime, args.batches, batch_size, args.scratch)
+                    row = probe(model, regime, args.batches, micro, args.scratch)
                 except torch.cuda.OutOfMemoryError:
-                    current = batch_size or load_config(CONFIGS[model]).optim.batch_size
-                    if current <= 8:
-                        print(f"{model:7s} {regime:13s} out of memory even at batch 8",
+                    current = micro or load_config(CONFIGS[model]).optim.batch_size
+                    if current <= 4:
+                        print(f"{model:7s} {regime:13s} out of memory even with micro-batch 4",
                               flush=True)
                         break
-                    batch_size = current // 2
-                    print(f"{model:7s} {regime:13s} out of memory at batch {current}, "
-                          f"retrying with {batch_size}", flush=True)
+                    micro = current // 2
+                    print(f"{model:7s} {regime:13s} out of memory with micro-batch {current}, "
+                          f"retrying with {micro}", flush=True)
             if row is None:
                 continue
             rows.append(row)
             peak = f"{row['peak_gb']:.2f}" if row["peak_gb"] is not None else "-"
-            print(f"{model:7s} {regime:13s} {row['batch_size']:5d} "
+            print(f"{model:7s} {regime:13s} {row['batch_size']:5d} {row['micro_batch_size']:5d} "
                   f"{row['s_per_batch'] * 1e3:9.1f} {row['s_per_val']:6.1f} {peak:>8s} "
                   f"{row['epoch_min']:10.1f} {row['epochs']:6d} {row['run_hours']:6.2f}",
                   flush=True)

@@ -38,6 +38,10 @@ class OptimConfig:
     warmup_epochs: float = 1.0
     grad_clip: float = 1.0
     min_lr_ratio: float = 0.01
+    # Split each batch into micro-batches whose gradients are accumulated before the optimiser
+    # step. Mathematically the same update as the full batch (the loss is a per-sample mean);
+    # used when unrolled training does not fit in GPU memory.
+    micro_batch_size: int | None = None
 
 
 @dataclass
@@ -69,6 +73,10 @@ class TrainConfig:
     # normalisation are taken from the checkpoint; ``model`` and ``n_in`` are ignored.
     init_checkpoint: str | None = None
     max_batches_per_epoch: int | None = None  # cap for quick/dry runs
+    # Cap on the GPU memory PyTorch may allocate. Above it training fails with an out-of-memory
+    # error instead of silently spilling into system RAM (the Windows driver's default), which
+    # makes training 20-30x slower (E011).
+    gpu_memory_fraction: float = 0.95
 
     def validate(self) -> None:
         r = self.regime
@@ -80,6 +88,12 @@ class TrainConfig:
             raise ValueError(f"regime {r.type!r} needs unroll >= 2")
         if r.type == "noise" and r.noise_std <= 0:
             raise ValueError("regime 'noise' needs noise_std > 0")
+        mb = self.optim.micro_batch_size
+        if mb is not None and (mb < 1 or self.optim.batch_size % mb != 0):
+            raise ValueError(f"micro_batch_size {mb} must divide batch_size "
+                             f"{self.optim.batch_size}")
+        if not 0 < self.gpu_memory_fraction <= 1:
+            raise ValueError("gpu_memory_fraction must be in (0, 1]")
         if "name" not in self.model:
             raise ValueError("model config needs a 'name'")
         for rng in (self.train_trajectories, self.val_trajectories):
