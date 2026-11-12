@@ -6,7 +6,8 @@
     python -m nfds.study.run configs/study/m5_dev.yaml optim.epochs=1   # extra overrides
 
 Completed work is detected from files on disk (a run's summary.json, an evaluation's
-JSON), so the command can be interrupted and restarted at any time. A run that fails is
+JSON), so the command can be interrupted and restarted at any time; a run stopped mid-training
+continues from its last finished epoch. A run that fails is
 recorded in <results>/failures.json and the study continues with the next one.
 
 Layout:
@@ -119,7 +120,7 @@ def execute(plan: StudyPlan, only: str | None = None, device: str = "auto",
             try:
                 cfg = train_config(plan, run)
                 cfg = config_from_dict({**cfg.to_dict(), "device": dev})
-                train(cfg, verbose=verbose)
+                train(cfg, verbose=verbose, resume=True)
                 counts["trained"] += 1
             except Exception as err:  # keep going; the failure is recorded
                 print(f"{head}: FAILED ({type(err).__name__}: {err})")

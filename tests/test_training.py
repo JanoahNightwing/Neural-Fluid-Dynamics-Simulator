@@ -152,3 +152,48 @@ def test_micro_batches_give_the_full_batch_gradient(tiny_dataset, tmp_path, regi
 def test_micro_batch_size_must_divide_batch_size(tiny_dataset, tmp_path):
     with pytest.raises(ValueError, match="micro_batch_size"):
         make_cfg(tiny_dataset, tmp_path, optim={"batch_size": 8, "micro_batch_size": 3})
+
+
+@pytest.mark.parametrize("regime", [{"type": "noise", "noise_std": 0.05},
+                                    {"type": "unroll", "unroll": 2}])
+def test_interrupted_run_resumes_exactly(tiny_dataset, tmp_path, regime, monkeypatch):
+    import nfds.training.train as tr
+
+    kw = {"regime": regime, "optim": {"epochs": 4, "batch_size": 4, "lr": 1e-3}}
+    full = train(make_cfg(tiny_dataset, tmp_path / "a", **kw), verbose=False)
+
+    real, calls = tr.accumulate_gradients, {"n": 0}
+
+    def crash_in_epoch_3(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] > 2 * steps + 1:  # one batch into epoch 3
+            raise KeyboardInterrupt
+        return real(*args, **kwargs)
+
+    cfg = make_cfg(tiny_dataset, tmp_path / "b", **kw)
+    steps = full["train_windows"] // 4
+    monkeypatch.setattr(tr, "accumulate_gradients", crash_in_epoch_3)
+    with pytest.raises(KeyboardInterrupt):
+        train(cfg, verbose=False, resume=True)
+    assert not (cfg.run_dir / "summary.json").exists()
+    monkeypatch.setattr(tr, "accumulate_gradients", real)
+    resumed = train(cfg, verbose=False, resume=True)
+
+    def losses(d):
+        return [json.loads(x)["train_loss"] for x in
+                (d / "t" / "metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+
+    assert losses(tmp_path / "a") == losses(tmp_path / "b")
+    assert resumed["best_val_rollout"] == full["best_val_rollout"]
+    wa = torch.load(tmp_path / "a" / "t" / "last.pt", weights_only=False)["model_state"]
+    wb = torch.load(tmp_path / "b" / "t" / "last.pt", weights_only=False)["model_state"]
+    for k in wa:
+        torch.testing.assert_close(wa[k], wb[k], rtol=0, atol=0)
+
+
+def test_resume_refuses_a_changed_config(tiny_dataset, tmp_path):
+    train(make_cfg(tiny_dataset, tmp_path, optim={"epochs": 1, "batch_size": 4}), verbose=False)
+    (tmp_path / "t" / "summary.json").unlink()  # pretend it was interrupted
+    with pytest.raises(ValueError, match="different config"):
+        train(make_cfg(tiny_dataset, tmp_path, optim={"epochs": 1, "batch_size": 4, "lr": 0.1}),
+              verbose=False, resume=True)

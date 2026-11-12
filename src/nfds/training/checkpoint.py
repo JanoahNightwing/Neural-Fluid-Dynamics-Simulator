@@ -14,7 +14,9 @@ from nfds.models import build_model
 
 def save_checkpoint(path: str | Path, model: torch.nn.Module, model_cfg: dict, n_in: int,
                     stats: dict, nu_norm: NuNormalizer, train_cfg: dict, epoch: int,
-                    metrics: dict, optimizer: torch.optim.Optimizer | None = None) -> None:
+                    metrics: dict, optimizer: torch.optim.Optimizer | None = None,
+                    resume_state: dict | None = None) -> None:
+    """Write a checkpoint atomically (a crash or Ctrl+C mid-write leaves the old file)."""
     state = {
         "model_state": model.state_dict(), "model_cfg": model_cfg, "n_in": n_in,
         "vorticity_mean": stats["vorticity_mean"], "vorticity_std": stats["vorticity_std"],
@@ -23,7 +25,12 @@ def save_checkpoint(path: str | Path, model: torch.nn.Module, model_cfg: dict, n
     }
     if optimizer is not None:
         state["optimizer_state"] = optimizer.state_dict()
-    torch.save(state, path)
+    if resume_state is not None:
+        state["resume_state"] = resume_state
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    torch.save(state, tmp)
+    tmp.replace(path)
 
 
 def load_checkpoint(path: str | Path, device: str | torch.device = "cpu"

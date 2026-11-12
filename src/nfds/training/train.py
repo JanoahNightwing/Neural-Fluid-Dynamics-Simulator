@@ -5,6 +5,11 @@
 
 Writes <out_dir>/<name>/: config.yaml, metrics.jsonl (one line per epoch),
 best.pt (lowest validation rollout error) and last.pt.
+
+With ``--resume`` (always on in studies) an interrupted run continues from the last
+validated epoch in last.pt: weights, optimiser, learning-rate schedule and history are restored,
+and because the shuffling and noise are seeded per epoch the remaining epochs see the same data
+order as an uninterrupted run.
 """
 
 from __future__ import annotations
@@ -126,8 +131,18 @@ def validate(model: torch.nn.Module, val_loader: DataLoader, val_data: dict, sta
             "val_rollout_last": float(rel[:, -1].mean())}
 
 
+def epoch_seed(seed: int, epoch: int) -> int:
+    """Seed for one epoch's shuffling and noise, so a resumed run repeats them exactly."""
+    return seed * 1_000_003 + epoch
+
+
+def _resume_key(cfg_dict: dict) -> dict:
+    """The parts of a config that must match for a run to be resumed (not the device)."""
+    return {k: v for k, v in cfg_dict.items() if k not in ("device", "out_dir")}
+
+
 def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
-          verbose: bool = True) -> dict:
+          verbose: bool = True, resume: bool = False) -> dict:
     device = resolve_device(cfg.device)
     if device.type == "cuda":
         torch.cuda.set_per_process_memory_fraction(cfg.gpu_memory_fraction, device)
@@ -135,6 +150,11 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
     seed_everything(cfg.seed)
     run_dir = cfg.run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
+    resume_ckpt = None
+    if resume and (run_dir / "last.pt").exists():
+        resume_ckpt = torch.load(run_dir / "last.pt", map_location="cpu", weights_only=False)
+        if "resume_state" not in resume_ckpt:
+            resume_ckpt = None  # written before resuming existed: start over
     (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg.to_dict(), sort_keys=False),
                                          encoding="utf-8")
 
@@ -192,12 +212,27 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
         print(f"{cfg.name}: {model_cfg['name']} with {n_params:,} parameters, "
               f"{len(train_ds):,} training windows, regime {cfg.regime.type} "
               f"(unroll {unroll}), device {device}", flush=True)
-    best, history = math.inf, []
+    best, history, first_epoch, seconds_before = math.inf, [], 1, 0.0
     log_path = run_dir / "metrics.jsonl"
-    log_path.write_text("", encoding="utf-8")
-    t_start = time.perf_counter()
-    for epoch in range(1, cfg.optim.epochs + 1):
+    if resume_ckpt is not None:
+        if _resume_key(resume_ckpt["train_cfg"]) != _resume_key(cfg.to_dict()):
+            raise ValueError(f"{run_dir / 'last.pt'} was written with a different config; "
+                             "delete the run directory to start this run again")
+        rs = resume_ckpt["resume_state"]
+        model.load_state_dict(resume_ckpt["model_state"])
+        opt.load_state_dict(resume_ckpt["optimizer_state"])
+        sched.load_state_dict(rs["scheduler_state"])
+        history, best = rs["history"], rs["best"]
+        first_epoch, seconds_before = resume_ckpt["epoch"] + 1, rs["train_seconds"]
+        if verbose:
+            print(f"  resuming after epoch {resume_ckpt['epoch']} (best validation rollout "
+                  f"{best:.4f})", flush=True)
+    log_path.write_text("".join(json.dumps(r) + "\n" for r in history), encoding="utf-8")
+    t_start = time.perf_counter() - seconds_before
+    for epoch in range(first_epoch, cfg.optim.epochs + 1):
         model.train()
+        g.manual_seed(epoch_seed(cfg.seed, epoch))  # shuffling order of this epoch
+        torch.manual_seed(epoch_seed(cfg.seed, epoch))  # noise regime, dropout
         t0, losses = time.perf_counter(), []
         for i, batch in enumerate(train_loader):
             if i >= steps_per_epoch:
@@ -220,8 +255,12 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
                 best = rec["val_rollout"]
                 save_checkpoint(run_dir / "best.pt", *ckpt_args)
                 rec["best"] = True
-            save_checkpoint(run_dir / "last.pt", *ckpt_args, optimizer=opt)
-        history.append(rec)
+            history.append(rec)
+            save_checkpoint(run_dir / "last.pt", *ckpt_args, optimizer=opt, resume_state={
+                "scheduler_state": sched.state_dict(), "history": history, "best": best,
+                "train_seconds": time.perf_counter() - t_start})
+        else:
+            history.append(rec)
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
         if verbose:
@@ -243,9 +282,11 @@ def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description="Train a surrogate model")
     p.add_argument("config")
     p.add_argument("overrides", nargs="*", help="key.sub=value overrides")
+    p.add_argument("--resume", action="store_true",
+                   help="continue an interrupted run from its last.pt")
     args = p.parse_args(argv)
     cfg = load_config(args.config, args.overrides)
-    summary = train(cfg)
+    summary = train(cfg, resume=args.resume)
     print(f"done: best validation rollout error {summary['best_val_rollout']:.4f}, "
           f"{summary['train_seconds'] / 60:.1f} min -> {Path(cfg.run_dir) / 'best.pt'}")
 

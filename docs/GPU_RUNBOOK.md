@@ -70,8 +70,11 @@ that the whole study fits overnight.
 python -m nfds.study.run configs\study\m5_main.yaml
 ```
 
-This trains 56 runs and evaluates every run and both baselines on every test set. It is safe
-to stop (Ctrl+C, reboot) and run the same command again: finished work is skipped. If a run
+This trains every run and evaluates every run and both baselines on every test set. It is safe
+to stop (Ctrl+C, shut down, reboot) and run the same command again: finished runs and
+evaluations are skipped, and a run stopped mid-training continues from its last finished epoch
+(the remaining epochs see exactly the data they would have seen). So the study can be spread
+over several sessions, e.g. only overnight. If a run
 fails, it is recorded in `results\m5_main\failures.json` and the study moves on.
 
 To stop Windows from sleeping during the run: Settings > System > Power > Screen and sleep >
