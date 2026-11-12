@@ -1,11 +1,19 @@
 # Milestone 5: the main study, on the full dataset and a GPU.
 #
-#   python -m nfds.study.run configs/study/m5_main.yaml --list   # plan + progress
-#   python -m nfds.study.run configs/study/m5_main.yaml          # run / resume
-#   python -m nfds.study.aggregate configs/study/m5_main.yaml    # tables, figures, report
+# Sized for ~41 GPU-hours on an RTX 4060 (E011, E012): every run trains 5,000 steps of batch 64.
+# Run it in three stages; each one ends with results that stand on their own. Every command can
+# be stopped (Ctrl+C, shut down) and run again: finished work is skipped and an interrupted run
+# continues from its last finished epoch.
 #
-# Interrupt at any time; re-running skips finished training runs and evaluations.
-# Run a subset first with --only, e.g. --only "regimes-*-onestep-*-s0".
+#   Stage 1, ~12 h: every model x regime, seed 0, plus baselines -> the complete main table
+#     python -m nfds.study.run configs/study/m5_main.yaml --only "*-nall-s0"
+#   Stage 2, ~24 h: seeds 1 and 2 -> error bars and confidence intervals
+#     python -m nfds.study.run configs/study/m5_main.yaml --only "*-nall-s[12]"
+#   Stage 3, ~5 h: data scaling, few-shot adaptation, the accuracy-vs-cost benchmark
+#     python -m nfds.study.run configs/study/m5_main.yaml
+#
+#   python -m nfds.study.run configs/study/m5_main.yaml --list   # plan + progress
+#   python -m nfds.study.aggregate configs/study/m5_main.yaml    # tables, figures, report
 
 name: m5_main
 data: data/forced_v1
@@ -49,7 +57,9 @@ experiments:
     split_trajectories: 64
     shots: [4, 16]
     val_trajectories: 8
-    overrides: ["optim.epochs=20", "optim.lr=1.0e-4", "optim.warmup_epochs=0.5"]
+    # natural epochs over the few shots (not 500 cycled steps, which would just memorise them)
+    overrides: ["optim.epochs=20", "optim.lr=1.0e-4", "optim.warmup_epochs=0.5",
+                "optim.steps_per_epoch=null"]
 
 evaluation:
   horizon: 40                 # 10 time units

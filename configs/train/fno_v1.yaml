@@ -5,7 +5,8 @@ data: data/forced_v1
 model: {name: fno, width: 64, modes: 16, n_layers: 4, proj_width: 128, channel_mlp: true}
 n_in: 1
 regime: {type: onestep}
-optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 50, batch_size: 64, warmup_epochs: 1}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 10, steps_per_epoch: 500, batch_size: 64,
+        warmup_epochs: 0.5}   # 5,000 steps: sized for an RTX 4060 (E012)
 val: {horizon: 40}
 amp: true
 num_workers: 0   # data is already in memory; workers would only copy it (slow on Windows)

@@ -385,3 +385,37 @@ full `forced_v1` data: 40 timed batches per (model, regime) after a warm-up epoc
 4. **The plan as written does not fit this GPU.** Even with the spill fixed, 50 epochs × 56 runs
    is several hundred GPU-hours; the study has to be resized (fewer steps per run and/or smaller
    convolutional models), see the next entry.
+
+**Follow-up measurement (unroll4 with the fix).** CNN 1,543 ms/batch (micro-batch 32, 4.64 GB),
+U-Net 2,586 ms (micro-batch 32, 7.31 GB), FNO 401 ms (4.92 GB), hybrid 1,170 ms (6.72 GB). Unrolled
+training now costs 3.6–5.5× one-step, as expected, instead of 26–32×.
+
+## E012 — Sizing the M5 study for one RTX 4060 (~48 GPU-hours)
+
+**Budget.** About 48 GPU-hours, run in sessions (resumable). Electricity is negligible (~200 W at
+the wall, ~10 kWh); the constraint is wall-clock time.
+
+**Decisions.**
+1. **Fixed training length in steps, not passes over the data:** every run trains 5,000 steps of
+   batch 64 (10 "epochs" of 500 steps; `optim.steps_per_epoch`). Consecutive frames are strongly
+   correlated, so a full pass (≈1,550 batches) is mostly redundant; 5,000 steps is ≈3.3 passes.
+   Fixing steps also makes the data-scaling experiment fair: a 50-trajectory run used to get 77
+   steps per epoch and a 1,000-trajectory run 1,546; now all get the same number of updates.
+   The dev runs were still improving at the end (1.4k steps of batch 32), so this is ≈7× more
+   training samples than any dev result.
+2. **The CNN is resized to width 64, depth 8**, the same size as the hybrid model's corrector.
+   It was the most expensive model per sample after the U-Net and the weakest in E005; at the
+   corrector's size, "CNN" vs "hybrid" becomes a controlled comparison of the same network with
+   and without the solver in the loop. Its cost is estimated from the hybrid's (≈0.4× the v1 CNN)
+   and will be checked against the first run's epoch time.
+3. **U-Net and FNO keep their v1 sizes.** The U-Net unroll4 run is the single most expensive item
+   (≈3.6 h); it stays, because the regime ablation needs every regime for every model.
+4. **Three seeds for the main comparison**, one for scaling and few-shot, as planned.
+5. **Staged execution**, so that every stage ends with a usable result and a bug costs at most
+   one stage: stage 1 = all 14 seed-0 runs of the regime and hybrid experiments plus baselines
+   (the complete main table, ≈12 h); stage 2 = seeds 1–2 (≈24 h); stage 3 = scaling, few-shot and
+   the Pareto benchmark (≈5 h).
+
+**Estimate (seconds per batch × 5,000 steps, plus validation and evaluation).** Per seed, the 14
+runs cost ≈7.8 s per step in total (U-Net 4.3, hybrid 1.4, CNN ≈1.25, FNO 0.83), i.e. ≈10.8 h of
+training, ≈0.4 h of validation and ≈1 h of evaluation: ≈12 h per seed, ≈41 h in all with stage 3.

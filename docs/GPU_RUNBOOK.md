@@ -64,18 +64,34 @@ memory and the extrapolated hours per run (results in `figures\train_timing.json
 plan (`configs\study\m5_main.yaml`: epochs, seeds, batch sizes) is sized from this table so
 that the whole study fits overnight.
 
-## 4. The full study (overnight)
+## 4. The full study (three stages, ~41 GPU-hours)
+
+Each stage ends with results that stand on their own. Run them in order:
 
 ```powershell
+# Stage 1 (~12 h): every model and training regime, seed 0, plus baselines
+python -m nfds.study.run configs\study\m5_main.yaml --only "*-nall-s0"
+# Stage 2 (~24 h): seeds 1 and 2, for error bars
+python -m nfds.study.run configs\study\m5_main.yaml --only "*-nall-s[12]"
+# Stage 3 (~5 h): data scaling, few-shot adaptation, accuracy-vs-cost benchmark
 python -m nfds.study.run configs\study\m5_main.yaml
 ```
 
-This trains every run and evaluates every run and both baselines on every test set. It is safe
-to stop (Ctrl+C, shut down, reboot) and run the same command again: finished runs and
+To keep a copy of the output you can read later (or from another computer), append
+`2>&1 | Tee-Object -Append study.log` to the command. Check progress at any time, in a second
+terminal, with:
+
+```powershell
+python -m nfds.study.run configs\study\m5_main.yaml --list
+Get-Content study.log -Tail 20 -Wait      # follow the log live (Ctrl+C stops following only)
+```
+
+Every stage is safe to stop (Ctrl+C, shut down, reboot) and run again: finished runs and
 evaluations are skipped, and a run stopped mid-training continues from its last finished epoch
 (the remaining epochs see exactly the data they would have seen). So the study can be spread
-over several sessions, e.g. only overnight. If a run
-fails, it is recorded in `results\m5_main\failures.json` and the study moves on.
+over several sessions, e.g. only overnight. If a run fails, it is recorded in
+`results\m5_main\failures.json` and the study moves on. If a batch does not fit in GPU memory,
+training switches to smaller micro-batches by itself (same update, printed once).
 
 To stop Windows from sleeping during the run: Settings > System > Power > Screen and sleep >
 "When plugged in, put my device to sleep after: Never" (restore it afterwards).

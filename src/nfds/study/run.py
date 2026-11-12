@@ -147,7 +147,7 @@ def execute(plan: StudyPlan, only: str | None = None, device: str = "auto",
                 log_failure(plan, f"eval {run.name} {spec.label}", err)
                 counts["failed"] += 1
 
-    if not skip_eval and only is None:
+    if not skip_eval:  # baselines are cheap and cached: evaluate them in every session
         for name in plan.baselines:
             for spec in plan.baseline_evals:
                 if eval_path(plan, name, spec, baseline=True).exists():
@@ -166,7 +166,7 @@ def execute(plan: StudyPlan, only: str | None = None, device: str = "auto",
                     print(f"baseline {name} {spec.label}: FAILED ({err})")
                     log_failure(plan, f"baseline {name} {spec.label}", err)
                     counts["failed"] += 1
-        if plan.speed and not (plan.results_dir / "pareto.json").exists():
+        if only is None and plan.speed and not (plan.results_dir / "pareto.json").exists():
             run_speed(plan, dev, verbose)
 
     counts["minutes"] = round((time.perf_counter() - t_start) / 60, 1)

@@ -197,3 +197,37 @@ def test_resume_refuses_a_changed_config(tiny_dataset, tmp_path):
     with pytest.raises(ValueError, match="different config"):
         train(make_cfg(tiny_dataset, tmp_path, optim={"epochs": 1, "batch_size": 4, "lr": 0.1}),
               verbose=False, resume=True)
+
+
+def test_steps_per_epoch_cycles_a_small_dataset(tiny_dataset, tmp_path, monkeypatch):
+    import nfds.training.train as tr
+
+    real, calls = tr.accumulate_gradients, {"n": 0}
+
+    def counting(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(tr, "accumulate_gradients", counting)
+    cfg = make_cfg(tiny_dataset, tmp_path, optim={"epochs": 2, "batch_size": 4,
+                                                   "steps_per_epoch": 7})
+    summary = train(cfg, verbose=False)
+    assert summary["train_windows"] // 4 < 7  # the loader really is shorter than an epoch
+    assert calls["n"] == 14
+
+
+def test_out_of_memory_falls_back_to_micro_batches(tiny_dataset, tmp_path, monkeypatch):
+    import nfds.training.train as tr
+
+    real, seen = tr.accumulate_gradients, []
+
+    def oom_above_2(model, batch, nu_norm, cfg, device, use_amp, micro=None):
+        seen.append(micro)
+        if (micro or batch["input"].shape[0]) > 2:
+            raise torch.cuda.OutOfMemoryError("simulated")
+        return real(model, batch, nu_norm, cfg, device, use_amp, micro)
+
+    monkeypatch.setattr(tr, "accumulate_gradients", oom_above_2)
+    cfg = make_cfg(tiny_dataset, tmp_path, optim={"epochs": 1, "batch_size": 8})
+    train(cfg, verbose=False)
+    assert seen[:3] == [None, 4, 2] and set(seen[3:]) == {2}

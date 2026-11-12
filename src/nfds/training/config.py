@@ -42,6 +42,10 @@ class OptimConfig:
     # step. Mathematically the same update as the full batch (the loss is a per-sample mean);
     # used when unrolled training does not fit in GPU memory.
     micro_batch_size: int | None = None
+    # Fixed number of optimiser steps per epoch (the loader is cycled if the dataset is
+    # smaller), so runs on datasets of different sizes train for the same number of steps.
+    # None: one pass over the training windows.
+    steps_per_epoch: int | None = None
 
 
 @dataclass
@@ -92,6 +96,8 @@ class TrainConfig:
         if mb is not None and (mb < 1 or self.optim.batch_size % mb != 0):
             raise ValueError(f"micro_batch_size {mb} must divide batch_size "
                              f"{self.optim.batch_size}")
+        if self.optim.steps_per_epoch is not None and self.optim.steps_per_epoch < 1:
+            raise ValueError("steps_per_epoch must be >= 1")
         if not 0 < self.gpu_memory_fraction <= 1:
             raise ValueError("gpu_memory_fraction must be in (0, 1]")
         if "name" not in self.model:

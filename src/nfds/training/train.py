@@ -78,14 +78,15 @@ def compute_loss(model: torch.nn.Module, batch: dict, nu_norm: NuNormalizer, cfg
 
 
 def accumulate_gradients(model: torch.nn.Module, batch: dict, nu_norm: NuNormalizer,
-                         cfg: TrainConfig, device: torch.device, use_amp: bool) -> float:
+                         cfg: TrainConfig, device: torch.device, use_amp: bool,
+                         micro_batch_size: int | None = None) -> float:
     """Backpropagate the batch loss, in micro-batches if configured; return the loss.
 
     Each micro-batch loss is weighted by its share of the batch, so the accumulated gradient
     equals the full-batch gradient.
     """
     n = batch["input"].shape[0]
-    mb = cfg.optim.micro_batch_size or n
+    mb = micro_batch_size or cfg.optim.micro_batch_size or n
     total = 0.0
     for s in range(0, n, mb):
         chunk = {k: v[s : s + mb] for k, v in batch.items()}
@@ -96,6 +97,17 @@ def accumulate_gradients(model: torch.nn.Module, batch: dict, nu_norm: NuNormali
         loss.backward()
         total += float(loss.detach())
     return total
+
+
+def cycle_batches(loader: DataLoader, n: int):
+    """Yield exactly ``n`` batches, starting a new pass over the loader when one ends."""
+    k = 0
+    while k < n:
+        for batch in loader:
+            if k >= n:
+                return
+            yield batch
+            k += 1
 
 
 def lr_lambda(cfg: TrainConfig, steps_per_epoch: int):
@@ -202,10 +214,12 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.optim.lr,
                             weight_decay=cfg.optim.weight_decay)
     max_batches_per_epoch = max_batches_per_epoch or cfg.max_batches_per_epoch
-    steps_per_epoch = min(len(train_loader), max_batches_per_epoch or len(train_loader))
-    if steps_per_epoch == 0:
+    if len(train_loader) == 0:
         raise ValueError(f"no complete training batch: {len(train_ds)} windows < batch size "
                          f"{cfg.optim.batch_size}")
+    steps_per_epoch = cfg.optim.steps_per_epoch or len(train_loader)
+    if max_batches_per_epoch:
+        steps_per_epoch = min(steps_per_epoch, max_batches_per_epoch)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda(cfg, steps_per_epoch))
     use_amp = cfg.amp and device.type == "cuda"
 
@@ -230,19 +244,33 @@ def train(cfg: TrainConfig, max_batches_per_epoch: int | None = None,
                   f"{best:.4f})", flush=True)
     log_path.write_text("".join(json.dumps(r) + "\n" for r in history), encoding="utf-8")
     t_start = time.perf_counter() - seconds_before
+    micro = None  # set if a batch does not fit in GPU memory
     for epoch in range(first_epoch, cfg.optim.epochs + 1):
         model.train()
         g.manual_seed(epoch_seed(cfg.seed, epoch))  # shuffling order of this epoch
         torch.manual_seed(epoch_seed(cfg.seed, epoch))  # noise regime, dropout
         t0, losses = time.perf_counter(), []
-        for i, batch in enumerate(train_loader):
-            if i >= steps_per_epoch:
-                break
-            opt.zero_grad(set_to_none=True)
-            try:
-                loss = accumulate_gradients(model, batch, nu_norm, cfg, device, use_amp)
-            except FloatingPointError as e:
-                raise FloatingPointError(f"{e} at epoch {epoch}, step {i}") from None
+        for i, batch in enumerate(cycle_batches(train_loader, steps_per_epoch)):
+            while True:
+                opt.zero_grad(set_to_none=True)
+                try:
+                    loss = accumulate_gradients(model, batch, nu_norm, cfg, device, use_amp,
+                                                micro)
+                    break
+                except FloatingPointError as e:
+                    raise FloatingPointError(f"{e} at epoch {epoch}, step {i}") from None
+                except torch.cuda.OutOfMemoryError:
+                    # does not fit: same update in smaller micro-batches (identical gradient)
+                    current = micro or cfg.optim.micro_batch_size or cfg.optim.batch_size
+                    if current <= 1:
+                        raise
+                    micro = current // 2
+                    opt.zero_grad(set_to_none=True)
+                    if device.type == "cuda":
+                        torch.cuda.empty_cache()
+                    if verbose:
+                        print(f"  out of GPU memory: continuing with micro-batches of {micro}",
+                              flush=True)
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.optim.grad_clip)
             opt.step()
             sched.step()

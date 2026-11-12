@@ -2,10 +2,11 @@
 #   python -m nfds.training.train configs/train/cnn_v1.yaml
 name: cnn_v1
 data: data/forced_v1
-model: {name: cnn, width: 96, depth: 10}
+model: {name: cnn, width: 64, depth: 8}   # same size as the hybrid's corrector
 n_in: 1
 regime: {type: onestep}
-optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 50, batch_size: 64, warmup_epochs: 1}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 10, steps_per_epoch: 500, batch_size: 64,
+        warmup_epochs: 0.5}   # 5,000 steps: sized for an RTX 4060 (E012)
 val: {horizon: 40}
 amp: true
 num_workers: 0   # data is already in memory; workers would only copy it (slow on Windows)
